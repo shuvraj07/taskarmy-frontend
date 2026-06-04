@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Chart,
   DoughnutController,
@@ -12,6 +13,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import { readSessions } from "@/lib/session-store";
 
 Chart.register(
   DoughnutController,
@@ -309,12 +311,18 @@ function Card({
 // ── main component ─────────────────────────────────────────────────────────────
 
 export default function PurpleDashboard() {
+  const router = useRouter();
   const donutRef = useRef<HTMLCanvasElement>(null);
   const barRef = useRef<HTMLCanvasElement>(null);
   const donutChart = useRef<Chart | null>(null);
   const barChart = useRef<Chart | null>(null);
 
   useEffect(() => {
+    if (!readSessions().tasker) {
+      router.replace("/login");
+      return;
+    }
+
     if (donutRef.current) {
       donutChart.current?.destroy();
       donutChart.current = new Chart(donutRef.current, {
@@ -382,7 +390,7 @@ export default function PurpleDashboard() {
       donutChart.current?.destroy();
       barChart.current?.destroy();
     };
-  }, []);
+  }, [router]);
 
   const col2: React.CSSProperties = {
     display: "grid",

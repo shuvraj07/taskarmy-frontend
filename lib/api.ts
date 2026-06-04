@@ -7,8 +7,15 @@ import type {
   Task,
   TaskCreatePayload,
   TaskUpdatePayload,
-  UserRegistration
+  UserRegistration,
 } from "@/lib/types";
+import {
+  bidArraySchema,
+  bidSchema,
+  loginResponseSchema,
+  taskArraySchema,
+  taskSchema,
+} from "@/lib/schemas";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:8000";
 
@@ -39,14 +46,45 @@ async function parseResponse<T>(response: Response): Promise<ApiEnvelope<T>> {
       ok: false,
       status: response.status,
       data: null,
-      error: message
+      error: message,
     };
   }
 
   return {
     ok: true,
     status: response.status,
-    data: data as T
+    data: data as T,
+  };
+}
+
+function validateResponse<T>(
+  envelope: ApiEnvelope<unknown>,
+  schema: {
+    safeParse(
+      value: unknown,
+    ):
+      | { success: true; data: T }
+      | { success: false; error: { message: string } };
+  },
+): ApiEnvelope<T> {
+  if (!envelope.ok || envelope.data === null) {
+    return envelope as ApiEnvelope<T>;
+  }
+
+  const parsed = schema.safeParse(envelope.data);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      status: envelope.status,
+      data: null,
+      error: parsed.error.message,
+    };
+  }
+
+  return {
+    ok: true,
+    status: envelope.status,
+    data: parsed.data,
   };
 }
 
@@ -54,59 +92,255 @@ async function request<T>(
   baseUrl: string,
   path: string,
   method: string,
-  options: RequestOptions = {}
+  options: RequestOptions = {},
 ): Promise<ApiEnvelope<T>> {
+  const headers: HeadersInit = {};
+
+  if (options.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (options.token) {
+    headers.Authorization = `Bearer ${options.token}`;
+  }
+
   try {
-    const headers: HeadersInit = {};
-
-    if (options.body !== undefined) {
-      headers["Content-Type"] = "application/json";
-    }
-
-    if (options.token) {
-      headers.Authorization = `Bearer ${options.token}`;
-    }
-
     const response = await fetch(`${baseUrl}${path}`, {
       method,
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+      body:
+        options.body === undefined ? undefined : JSON.stringify(options.body),
     });
 
-    return parseResponse<T>(response);
+    return await parseResponse<T>(response);
   } catch (error) {
     return {
       ok: false,
       status: 0,
       data: null,
-      error: error instanceof Error ? error.message : "Network request failed"
+      error: error instanceof Error ? error.message : "Network request failed",
+    };
+  }
+}
+
+// separate request for file uploads
+async function requestFormData<T>(
+  baseUrl: string,
+  path: string,
+  token: string,
+  formData: FormData,
+): Promise<ApiEnvelope<T>> {
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    return await parseResponse<T>(response);
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: error instanceof Error ? error.message : "Network request failed",
     };
   }
 }
 
 export const taskArmyApi = {
   root: (baseUrl: string) => request<unknown>(baseUrl, "/", "GET"),
+
   health: (baseUrl: string) => request<unknown>(baseUrl, "/health", "GET"),
-  register: (baseUrl: string, body: UserRegistration) =>
+
+  register: async (baseUrl: string, body: UserRegistration) =>
     request<unknown>(baseUrl, "/auth/register", "POST", { body }),
-  login: (baseUrl: string, body: Credentials) =>
-    request<LoginResponse>(baseUrl, "/auth/login", "POST", { body }),
-  createTask: (baseUrl: string, token: string, body: TaskCreatePayload) =>
-    request<Task>(baseUrl, "/tasks/", "POST", { token, body }),
-  myTasks: (baseUrl: string, token: string) =>
-    request<Task[]>(baseUrl, "/tasks/my", "GET", { token }),
-  updateTask: (baseUrl: string, token: string, taskId: number, body: TaskUpdatePayload) =>
-    request<Task>(baseUrl, `/tasks/${taskId}`, "PUT", { token, body }),
-  acceptBid: (baseUrl: string, token: string, taskId: number, bidId: number) =>
-    request<Task>(baseUrl, `/tasks/${taskId}/accept-bid/${bidId}`, "PUT", { token }),
-  rejectBid: (baseUrl: string, token: string, taskId: number, bidId: number) =>
-    request<Task>(baseUrl, `/tasks/${taskId}/reject-bid/${bidId}`, "PUT", { token }),
+
+  login: async (baseUrl: string, body: Credentials) => {
+    const response = await request<LoginResponse>(
+      baseUrl,
+      "/auth/login",
+      "POST",
+      { body },
+    );
+    return validateResponse(response, loginResponseSchema);
+  },
+
+  googleLogin: async (
+    baseUrl: string,
+    body: { token: string; role?: string },
+  ) => {
+    const response = await request<LoginResponse & { role?: string }>(
+      baseUrl,
+      "/auth/google/token",
+      "POST",
+      { body },
+    );
+    return validateResponse(response, loginResponseSchema);
+  },
+
+  // ── Update user profile (used on onboarding to set role)
+  updateProfile: async (
+    baseUrl: string,
+    token: string,
+    body: { role: string },
+  ) => {
+    return request<{ role: string }>(baseUrl, "/auth/profile", "PATCH", {
+      token,
+      body,
+    });
+  },
+
+  // ── Tasks
+  createTask: async (
+    baseUrl: string,
+    token: string,
+    body: TaskCreatePayload,
+  ) => {
+    const response = await request<Task>(baseUrl, "/tasks/", "POST", {
+      token,
+      body,
+    });
+    return validateResponse(response, taskSchema);
+  },
+
+  myTasks: async (baseUrl: string, token: string) => {
+    const response = await request<Task[]>(baseUrl, "/tasks/my", "GET", {
+      token,
+    });
+    return validateResponse(response, taskArraySchema);
+  },
+
+  updateTask: async (
+    baseUrl: string,
+    token: string,
+    taskId: number,
+    body: TaskUpdatePayload,
+  ) => {
+    const response = await request<Task>(baseUrl, `/tasks/${taskId}`, "PUT", {
+      token,
+      body,
+    });
+    return validateResponse(response, taskSchema);
+  },
+
+  acceptBid: async (
+    baseUrl: string,
+    token: string,
+    taskId: number,
+    bidId: number,
+  ) => {
+    const response = await request<Task>(
+      baseUrl,
+      `/tasks/${taskId}/accept-bid/${bidId}`,
+      "PUT",
+      { token },
+    );
+    return validateResponse(response, taskSchema);
+  },
+
+  rejectBid: async (
+    baseUrl: string,
+    token: string,
+    taskId: number,
+    bidId: number,
+  ) => {
+    const response = await request<Task>(
+      baseUrl,
+      `/tasks/${taskId}/reject-bid/${bidId}`,
+      "PUT",
+      { token },
+    );
+    return validateResponse(response, taskSchema);
+  },
+
   deleteTask: (baseUrl: string, token: string, taskId: number) =>
     request<unknown>(baseUrl, `/tasks/${taskId}`, "DELETE", { token }),
-  browseTasks: (baseUrl: string, token: string) =>
-    request<Task[]>(baseUrl, "/tasks/", "GET", { token }),
-  placeBid: (baseUrl: string, token: string, taskId: number, body: BidCreatePayload) =>
-    request<Bid>(baseUrl, `/tasks/${taskId}/bid`, "POST", { token, body }),
-  myBids: (baseUrl: string, token: string) =>
-    request<Bid[]>(baseUrl, "/tasks/my-bids", "GET", { token })
+
+  browseTasks: async (baseUrl: string, token: string) => {
+    const response = await request<Task[]>(baseUrl, "/tasks/", "GET", {
+      token,
+    });
+    return validateResponse(response, taskArraySchema);
+  },
+
+  placeBid: async (
+    baseUrl: string,
+    token: string,
+    taskId: number,
+    body: BidCreatePayload,
+  ) => {
+    const response = await request<Bid>(
+      baseUrl,
+      `/tasks/${taskId}/bid`,
+      "POST",
+      { token, body },
+    );
+    return validateResponse(response, bidSchema);
+  },
+
+  myBids: async (baseUrl: string, token: string) => {
+    const response = await request<Bid[]>(baseUrl, "/tasks/my-bids", "GET", {
+      token,
+    });
+    return validateResponse(response, bidArraySchema);
+  },
+
+  // ── Taskarmy submits work (file upload)
+  submitWork: async (
+    baseUrl: string,
+    token: string,
+    taskId: number,
+    file: File,
+    message?: string,
+  ) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (message) formData.append("message", message);
+    return requestFormData<Task>(
+      baseUrl,
+      `/tasks/${taskId}/submit`,
+      token,
+      formData,
+    );
+  },
+
+  // ── Client approves submitted work → marks task completed
+  approveWork: async (baseUrl: string, token: string, taskId: number) => {
+    const response = await request<Task>(
+      baseUrl,
+      `/tasks/${taskId}/approve`,
+      "PUT",
+      { token },
+    );
+    return validateResponse(response, taskSchema);
+  },
+
+  // ── Client requests revision on submitted work
+  requestRevision: async (
+    baseUrl: string,
+    token: string,
+    taskId: number,
+    body: { message: string },
+  ) => {
+    const response = await request<Task>(
+      baseUrl,
+      `/tasks/${taskId}/revision`,
+      "PUT",
+      { token, body },
+    );
+    return validateResponse(response, taskSchema);
+  },
+
+  // ── Get submitted file download URL
+  getSubmission: async (baseUrl: string, token: string, taskId: number) => {
+    return request<{ file_url: string; message?: string }>(
+      baseUrl,
+      `/tasks/${taskId}/submission`,
+      "GET",
+      { token },
+    );
+  },
 };

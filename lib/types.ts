@@ -7,6 +7,8 @@ export type Session = {
   token: string;
   email: string;
   fullName?: string;
+  avatarUrl?: string;
+  savedAt?: number; // ← ADDED
 };
 
 export type ApiEnvelope<T = unknown> = {
@@ -40,7 +42,12 @@ export type TaskCreatePayload = {
   deadline: string;
 };
 
-export type TaskPhase = "open" | "assigned" | "in_progress" | "completed" | "cancelled";
+export type TaskPhase =
+  | "open"
+  | "assigned"
+  | "in_progress"
+  | "completed"
+  | "cancelled";
 
 export type TaskUpdatePayload = Partial<TaskCreatePayload> & {
   status?: TaskPhase;
@@ -58,6 +65,8 @@ export type Bid = {
   status?: string;
   task_id?: number;
   bidder_id?: number;
+  bidder_name?: string;
+  bidder_email?: string;
   created_at?: string;
 };
 

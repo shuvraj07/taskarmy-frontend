@@ -8,12 +8,15 @@ export function Button({
   className = "",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "danger";
+  variant?: "primary" | "secondary" | "danger" | "outline";
 }) {
   const styles = {
     primary: "bg-brand-600 text-white hover:bg-brand-700",
-    secondary: "border border-line bg-white text-ink hover:border-brand-500 hover:bg-brand-50",
-    danger: "bg-red-600 text-white hover:bg-red-700"
+    secondary:
+      "border border-line bg-white text-ink hover:border-brand-500 hover:bg-brand-50",
+    danger: "bg-red-600 text-white hover:bg-red-700",
+    outline:
+      "border border-line bg-white text-ink shadow-sm hover:border-brand-500 hover:bg-paper",
   };
 
   return (
@@ -32,7 +35,7 @@ export function Field({
   onChange,
   type = "text",
   placeholder,
-  required = false
+  required = false,
 }: {
   label: string;
   value: string;
@@ -60,7 +63,7 @@ export function TextArea({
   label,
   value,
   onChange,
-  placeholder
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -84,7 +87,7 @@ export function SelectField({
   label,
   value,
   onChange,
-  options
+  options,
 }: {
   label: string;
   value: string;
@@ -113,7 +116,7 @@ export function PageHeader({
   eyebrow,
   title,
   description,
-  action
+  action,
 }: {
   eyebrow: string;
   title: string;
@@ -123,22 +126,38 @@ export function PageHeader({
   return (
     <div className="flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">{eyebrow}</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-normal text-ink">{title}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{description}</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">
+          {eyebrow}
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-normal text-ink">
+          {title}
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+          {description}
+        </p>
       </div>
       {action}
     </div>
   );
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`surface rounded-lg p-5 ${className}`}>{children}</section>;
+export function Card({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`surface rounded-lg p-5 ${className}`}>
+      {children}
+    </section>
+  );
 }
 
 export function StatusBox({
   message,
-  tone = "neutral"
+  tone = "neutral",
 }: {
   message: string;
   tone?: "neutral" | "success" | "error";
@@ -146,8 +165,14 @@ export function StatusBox({
   const styles = {
     neutral: "border-line bg-white text-muted",
     success: "border-mint-100 bg-mint-100 text-mint-700",
-    error: "border-red-100 bg-red-50 text-red-700"
+    error: "border-red-100 bg-red-50 text-red-700",
   };
 
-  return <div className={`rounded-md border p-3 text-sm font-medium ${styles[tone]}`}>{message}</div>;
+  return (
+    <div
+      className={`rounded-md border p-3 text-sm font-medium ${styles[tone]}`}
+    >
+      {message}
+    </div>
+  );
 }

@@ -2,124 +2,161 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BriefcaseBusiness, RefreshCw } from "lucide-react";
-import { taskArmyApi } from "@/lib/api";
-import { readBaseUrl, readSessions } from "@/lib/session-store";
-import { Button, StatusBox } from "@/components/ui";
+import { useRouter } from "next/navigation";
+import { ShieldCheck, Briefcase, Users, Zap } from "lucide-react";
+import { Button, Card } from "@/components/ui";
+import { readActiveRole } from "@/lib/session-store";
 
 export default function Home() {
-  const [count, setCount] = useState<number | null>(null);
-  const [status, setStatus] = useState("Loading task count...");
-  const [busy, setBusy] = useState(false);
-
-  async function loadCount() {
-    const session = readSessions().taskarmy;
-
-    if (!session) {
-      setCount(null);
-      setStatus("Login as TaskArmy to see the live posted task count.");
-      return;
-    }
-
-    setBusy(true);
-    const response = await taskArmyApi.browseTasks(
-      readBaseUrl(),
-      session.token,
-    );
-    setBusy(false);
-
-    if (response.ok && response.data) {
-      setCount(response.data.length);
-      setStatus("Live task count loaded.");
-      return;
-    }
-
-    setCount(null);
-    setStatus(response.error ?? "Could not load task count.");
-  }
+  const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    void loadCount();
+    const role = readActiveRole();
+    setIsLoggedIn(!!role);
   }, []);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-brand-900 px-4 py-10">
-      <div className="grid w-full gap-6 lg:grid-cols-[1fr_360px]">
-        <section className="rounded-lg border border-white/10 bg-white p-6 shadow-soft">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-brand-100 text-brand-700">
-            <BriefcaseBusiness className="h-6 w-6" aria-hidden="true" />
+    <div className="min-h-screen w-full bg-gradient-to-b from-[#f8f6ff] to-white">
+      {/* Header */}
+      <header className="border-b border-[#ded7ee] bg-white px-6 py-4">
+        <div className="mx-auto max-w-6xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#4f22bd] text-white">
+                <ShieldCheck className="h-6 w-6" />
+              </div>
+              <p className="text-2xl font-bold text-[#21145f]">Taskzity</p>
+            </div>
+            <nav className="flex items-center gap-4">
+              {isLoggedIn ? (
+                <Button onClick={() => router.push("/bids")}>Dashboard</Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push("/login")}
+                  >
+                    Sign In
+                  </Button>
+                  <Button onClick={() => router.push("/register")}>
+                    Get Started
+                  </Button>
+                </>
+              )}
+            </nav>
           </div>
-          <p className="mt-5 text-sm font-semibold uppercase tracking-wide text-brand-700">
-            Posted tasks
-          </p>
-          <h1 className="mt-2 text-6xl font-semibold tracking-normal text-ink">
-            {count ?? "--"}
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <section className="px-6 py-16">
+        <div className="mx-auto max-w-4xl text-center">
+          <h1 className="text-5xl font-bold text-[#21145f]">
+            Get Tasks Done — Remotely
           </h1>
-          <div className="mt-5">
-            <StatusBox
-              message={status}
-              tone={count === null ? "neutral" : "success"}
-            />
-          </div>
-          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <p className="mt-4 text-xl text-[#6d668a]">
+            Post tasks, find skilled workers, and get things done faster.
+          </p>
+          <div className="mt-8 flex justify-center gap-4">
+            {!isLoggedIn && (
+              <>
+                <Button
+                  size="lg"
+                  onClick={() => router.push("/register?role=tasker")}
+                >
+                  Post a Task
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => router.push("/register?role=taskarmy")}
+                >
+                  Find Work
+                </Button>
+              </>
+            )}
             <Button
-              type="button"
-              variant="secondary"
-              onClick={() => void loadCount()}
-              disabled={busy}
+              size="lg"
+              variant="outline"
+              onClick={() => router.push("/bids")}
             >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              Refresh
+              Browse Tasks
             </Button>
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
-              href="/taskarmy/tasks"
-            >
-              Browse
-            </Link>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="rounded-lg border border-white/10 bg-white p-6 shadow-soft">
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">
-            Quick access
-          </p>
-          <h2 className="mt-3 text-2xl font-semibold text-ink">
-            Login or register
+      {/* Features */}
+      <section className="px-6 py-16">
+        <div className="mx-auto max-w-6xl">
+          <h2 className="mb-12 text-center text-3xl font-bold text-[#21145f]">
+            How It Works
           </h2>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            Choose your role to continue as a task poster (Tasker) or a bidder
-            (TaskArmy).
-          </p>
-
-          <div className="mt-6 grid gap-3">
-            <Link
-              href="/login?role=tasker"
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              Login as Tasker
-            </Link>
-            <Link
-              href="/register?role=tasker"
-              className="inline-flex min-h-11 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-brand-500"
-            >
-              Register as Tasker
-            </Link>
-            <Link
-              href="/login?role=taskarmy"
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              Login as TaskArmy
-            </Link>
-            <Link
-              href="/register?role=taskarmy"
-              className="inline-flex min-h-11 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-brand-500"
-            >
-              Register as TaskArmy
-            </Link>
+          <div className="grid gap-8 md:grid-cols-3">
+            <Card className="border-[#ded7ee] bg-white p-6">
+              <Briefcase className="h-8 w-8 text-[#4f22bd]" />
+              <h3 className="mt-4 text-xl font-bold text-[#21145f]">
+                Post a Task
+              </h3>
+              <p className="mt-2 text-[#6d668a]">
+                Describe what you need done and set your budget
+              </p>
+            </Card>
+            <Card className="border-[#ded7ee] bg-white p-6">
+              <Users className="h-8 w-8 text-[#4f22bd]" />
+              <h3 className="mt-4 text-xl font-bold text-[#21145f]">
+                Get Offers
+              </h3>
+              <p className="mt-2 text-[#6d668a]">
+                Receive bids from qualified workers instantly
+              </p>
+            </Card>
+            <Card className="border-[#ded7ee] bg-white p-6">
+              <Zap className="h-8 w-8 text-[#4f22bd]" />
+              <h3 className="mt-4 text-xl font-bold text-[#21145f]">
+                Get It Done
+              </h3>
+              <p className="mt-2 text-[#6d668a]">
+                Collaborate and complete your task on time
+              </p>
+            </Card>
           </div>
-        </section>
-      </div>
-    </main>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="bg-gradient-to-r from-[#4f22bd] to-[#371184] px-6 py-16 text-white">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl font-bold">Ready to get started?</h2>
+          <p className="mt-4 text-white/80">
+            Browse available tasks or post your own.
+          </p>
+          {!isLoggedIn && (
+            <div className="mt-8 flex justify-center gap-4">
+              <Link href="/login">
+                <Button size="lg" className="bg-white text-[#4f22bd]">
+                  Sign In
+                </Button>
+              </Link>
+              <Link href="/register">
+                <Button size="lg" variant="outline" className="border-white">
+                  Create Account
+                </Button>
+              </Link>
+            </div>
+          )}
+          {isLoggedIn && (
+            <Button
+              size="lg"
+              className="mt-8 bg-white text-[#4f22bd]"
+              onClick={() => router.push("/bids")}
+            >
+              Go to Dashboard
+            </Button>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }

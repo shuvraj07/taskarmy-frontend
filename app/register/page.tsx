@@ -1,51 +1,74 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { UserPlus } from "lucide-react";
 import { taskArmyApi } from "@/lib/api";
+import { registerSchema } from "@/lib/schemas";
 import { readBaseUrl } from "@/lib/session-store";
 import type { Role } from "@/lib/types";
 import { AuthShell } from "@/components/app-shell";
 import { Button, Card, Field, PageHeader, StatusBox } from "@/components/ui";
 
+type RegisterFormValues = {
+  role: Role;
+  full_name: string;
+  email: string;
+  password: string;
+};
+
 export default function RegisterPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [role, setRole] = useState<Role>("tasker");
-  const [fullName, setFullName] = useState("Task Owner");
-  const [email, setEmail] = useState("tasker@example.com");
-  const [password, setPassword] = useState("password123");
   const [status, setStatus] = useState(
     "Create a Tasker or TaskArmy account from this page.",
   );
   const [tone, setTone] = useState<"neutral" | "success" | "error">("neutral");
   const [busy, setBusy] = useState(false);
 
+  const {
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { isSubmitting },
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      role: "tasker",
+      full_name: "Task Owner",
+      email: "tasker@example.com",
+      password: "password123",
+    },
+  });
+
+  const role = watch("role");
+
   useEffect(() => {
-    const param = searchParams.get("role");
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const param = params.get("role");
     if (param === "tasker" || param === "taskarmy") {
-      chooseRole(param);
+      setValue("role", param);
+      setValue("full_name", param === "tasker" ? "Task Owner" : "Task Worker");
+      setValue(
+        "email",
+        param === "tasker" ? "tasker@example.com" : "worker@example.com",
+      );
     }
-  }, [searchParams]);
+  }, [setValue]);
 
-  function chooseRole(nextRole: Role) {
-    setRole(nextRole);
-    setFullName(nextRole === "tasker" ? "Task Owner" : "Task Worker");
-    setEmail(
-      nextRole === "tasker" ? "tasker@example.com" : "worker@example.com",
-    );
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function onSubmit(values: RegisterFormValues) {
     setBusy(true);
     const response = await taskArmyApi.register(readBaseUrl(), {
-      email,
-      password,
-      full_name: fullName,
-      role,
+      email: values.email,
+      password: values.password,
+      full_name: values.full_name,
+      role: values.role,
     });
     setBusy(false);
 
@@ -58,6 +81,15 @@ export default function RegisterPage() {
 
     setTone("error");
     setStatus(response.error ?? "Registration failed.");
+  }
+
+  function chooseRole(nextRole: Role) {
+    setValue("role", nextRole);
+    setValue("full_name", nextRole === "tasker" ? "Task Owner" : "Task Worker");
+    setValue(
+      "email",
+      nextRole === "tasker" ? "tasker@example.com" : "worker@example.com",
+    );
   }
 
   return (
@@ -98,31 +130,56 @@ export default function RegisterPage() {
             />
           </div>
 
-          <form className="mt-6 grid gap-4 sm:grid-cols-2" onSubmit={submit}>
-            <Field
-              label="Full name"
-              value={fullName}
-              onChange={setFullName}
-              required
+          <form
+            className="mt-6 grid gap-4 sm:grid-cols-2"
+            onSubmit={handleSubmit(onSubmit)}
+          >
+            <Controller
+              name="full_name"
+              control={control}
+              render={({ field }) => (
+                <Field
+                  label="Full name"
+                  value={field.value}
+                  onChange={field.onChange}
+                  required
+                />
+              )}
             />
-            <Field
-              label="Email"
-              type="email"
-              value={email}
-              onChange={setEmail}
-              required
+            <Controller
+              name="email"
+              control={control}
+              render={({ field }) => (
+                <Field
+                  label="Email"
+                  type="email"
+                  value={field.value}
+                  onChange={field.onChange}
+                  required
+                />
+              )}
             />
-            <Field
-              label="Password"
-              type="password"
-              value={password}
-              onChange={setPassword}
-              required
+            <Controller
+              name="password"
+              control={control}
+              render={({ field }) => (
+                <Field
+                  label="Password"
+                  type="password"
+                  value={field.value}
+                  onChange={field.onChange}
+                  required
+                />
+              )}
             />
             <div className="flex items-end">
-              <Button type="submit" className="w-full" disabled={busy}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={busy || isSubmitting}
+              >
                 <UserPlus className="h-4 w-4" aria-hidden="true" />
-                {busy ? "Creating..." : "Create account"}
+                {busy || isSubmitting ? "Creating..." : "Create account"}
               </Button>
             </div>
           </form>

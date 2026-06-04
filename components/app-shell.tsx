@@ -15,6 +15,7 @@ import {
   readBaseUrl,
   readSessions,
   removeSession,
+  subscribeToSessionChanges,
   writeBaseUrl,
 } from "@/lib/session-store";
 import type { Role, Session } from "@/lib/types";
@@ -23,8 +24,12 @@ import { Button } from "@/components/ui";
 const links = [
   { href: "/login", label: "Login", icon: LogIn },
   { href: "/register", label: "Register", icon: UserPlus },
-  { href: "/tasker/tasks", label: "Tasker", icon: ClipboardList },
-  { href: "/taskarmy/tasks", label: "TaskArmy", icon: BriefcaseBusiness },
+  { href: "/tasker/dashboard", label: "Tasker Dashboard", icon: ClipboardList },
+  {
+    href: "/taskarmy/dashboard",
+    label: "Worker Dashboard",
+    icon: BriefcaseBusiness,
+  },
   { href: "/taskarmy/profile", label: "TaskArmy Profile", icon: User },
   { href: "/bids", label: "Bids", icon: Gavel },
   { href: "/profile", label: "Profile", icon: User },
@@ -36,8 +41,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<Partial<Record<Role, Session>>>({});
 
   useEffect(() => {
-    setBaseUrl(readBaseUrl());
-    setSessions(readSessions());
+    function syncChromeState() {
+      setBaseUrl(readBaseUrl());
+      setSessions(readSessions());
+    }
+
+    syncChromeState();
+    const unsubscribe = subscribeToSessionChanges(syncChromeState);
+    const intervalId = window.setInterval(syncChromeState, 30_000);
+
+    return () => {
+      unsubscribe();
+      window.clearInterval(intervalId);
+    };
   }, [pathname]);
 
   function updateBaseUrl(value: string) {
@@ -131,7 +147,7 @@ function SessionPill({
   return (
     <div className="inline-flex min-h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink">
       <span className={session ? "text-mint-700" : "text-muted"}>
-        {label}: {session ? session.email : "signed out"}
+        {label}: {session ? session.fullName || session.email : "signed out"}
       </span>
       {session && (
         <Button

@@ -2,15 +2,17 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { RefreshCw, Send } from "lucide-react";
 import { taskArmyApi } from "@/lib/api";
-import { readBaseUrl, readSessions } from "@/lib/session-store";
+import { readBaseUrl, readSessions, removeSession } from "@/lib/session-store";
 import type { Session, Task } from "@/lib/types";
 import { AppShell } from "@/components/app-shell";
 import { Button, Card, Field, StatusBox, TextArea } from "@/components/ui";
 import { TaskCard } from "@/components/task-card";
 
 export default function TaskArmyTasksPage() {
+  const router = useRouter();
   const [session, setSession] = useState<Session>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskId, setTaskId] = useState("1");
@@ -30,10 +32,20 @@ export default function TaskArmyTasksPage() {
       setTone("success");
       setStatus("Open task list updated.");
     } else {
+      if (response.status === 401 || response.status === 403) {
+        removeSession("taskarmy");
+        setSession(undefined);
+        setTasks([]);
+        setTone("error");
+        setStatus("Your session expired. Please log in again.");
+        router.replace("/login");
+        return;
+      }
+
       setTone("error");
       setStatus(response.error ?? "Could not load open tasks.");
     }
-  }, []);
+  }, [router]);
 
   async function refresh() {
     if (!session) return;
@@ -57,6 +69,15 @@ export default function TaskArmyTasksPage() {
       message
     });
     setBusy(null);
+    if (response.status === 401 || response.status === 403) {
+      removeSession("taskarmy");
+      setSession(undefined);
+      setTone("error");
+      setStatus("Your session expired. Please log in again.");
+      router.replace("/login");
+      return;
+    }
+
     setTone(response.ok ? "success" : "error");
     setStatus(response.ok ? `Bid #${response.data?.id ?? ""} submitted.` : response.error ?? "Could not place bid.");
   }
