@@ -35,7 +35,7 @@ export function BidsHeader({
             <div>
               <p className="text-3xl font-bold leading-none">TaskArmy</p>
               <p className="mt-1 text-sm font-medium text-white/85">
-                Get Things Done — Remotely
+                Get Things Done — Remotely with TaskArmy
               </p>
               {activeSession && (
                 <div className="mt-2 flex items-center gap-2 text-xs font-medium text-white/70">
