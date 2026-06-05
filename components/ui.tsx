@@ -5,10 +5,12 @@ import type { ReactNode } from "react";
 export function Button({
   children,
   variant = "primary",
+  size = "md",
   className = "",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "danger" | "outline";
+  size?: "sm" | "md" | "lg";
 }) {
   const styles = {
     primary: "bg-brand-600 text-white hover:bg-brand-700",
@@ -19,9 +21,15 @@ export function Button({
       "border border-line bg-white text-ink shadow-sm hover:border-brand-500 hover:bg-paper",
   };
 
+  const sizeStyles = {
+    sm: "min-h-9 px-3 text-xs",
+    md: "min-h-11 px-4 text-sm",
+    lg: "min-h-12 px-6 text-base",
+  };
+
   return (
     <button
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${styles[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-md font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${styles[variant]} ${sizeStyles[size]} ${className}`}
       {...props}
     >
       {children}
