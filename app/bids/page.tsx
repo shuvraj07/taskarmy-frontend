@@ -20,6 +20,7 @@ import {
   getSampleChecklist,
   type FeedTask,
   type TaskCategory,
+  type ChecklistItem,
 } from "@/components/bids";
 import { taskArmyApi } from "@/lib/api";
 import {
@@ -66,6 +67,12 @@ export default function BidsPage() {
   const [newTaskDescription, setNewTaskDescription] = useState(
     "Need someone to write clear, engaging product descriptions for an e-commerce store.",
   );
+  const [newTaskChecklist, setNewTaskChecklist] = useState<ChecklistItem[]>(
+    getSampleChecklist("Content Writing"),
+  );
+  const [customChecklistByTaskId, setCustomChecklistByTaskId] = useState<
+    Record<number, ChecklistItem[]>
+  >({});
   const [newTaskFiles, setNewTaskFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<
     Record<string, "uploading" | "done" | "error">
@@ -297,11 +304,12 @@ export default function BidsPage() {
         budget: task.budget,
         offers: taskOffers,
         imageUrl: getTaskImageUrl(task),
-        checklist: getSampleChecklist(category),
+        checklist:
+          customChecklistByTaskId[task.id] ?? getSampleChecklist(category),
         liveTask: task,
       };
     });
-  }, [liveTasks, nowTick]);
+  }, [liveTasks, nowTick, customChecklistByTaskId]);
 
   const visibleTasks = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -321,6 +329,57 @@ export default function BidsPage() {
         return 0;
       });
   }, [activeCategory, feedTasks, searchTerm, sortMode]);
+
+  function generateChecklistItemId() {
+    return `checklist-${Date.now()}-${Math.random().toString(32).slice(2)}`;
+  }
+
+  function handleNewTaskCategoryChange(category: Exclude<TaskCategory, "All">) {
+    setNewTaskCategory(category);
+    setNewTaskChecklist((current) => {
+      const previousSample = getSampleChecklist(newTaskCategory);
+      const isUsingSample =
+        current.length === previousSample.length &&
+        current.every(
+          (item, index) =>
+            item.id === previousSample[index].id &&
+            item.label === previousSample[index].label &&
+            item.description === previousSample[index].description,
+        );
+      return isUsingSample ? getSampleChecklist(category) : current;
+    });
+  }
+
+  function handleAddChecklistItem() {
+    setNewTaskChecklist((current) => [
+      ...current,
+      {
+        id: generateChecklistItemId(),
+        label: "",
+        description: "",
+      },
+    ]);
+  }
+
+  function handleRemoveChecklistItem(id: string) {
+    setNewTaskChecklist((current) => current.filter((item) => item.id !== id));
+  }
+
+  function handleChecklistItemLabelChange(id: string, value: string) {
+    setNewTaskChecklist((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, label: value } : item,
+      ),
+    );
+  }
+
+  function handleChecklistItemDescriptionChange(id: string, value: string) {
+    setNewTaskChecklist((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, description: value } : item,
+      ),
+    );
+  }
 
   function openBidSheet(task: FeedTask) {
     setSelectedTask(task);
@@ -379,6 +438,11 @@ export default function BidsPage() {
     if (response.ok && response.data) {
       const createdTask = response.data as Task;
 
+      setCustomChecklistByTaskId((current) => ({
+        ...current,
+        [createdTask.id]: newTaskChecklist,
+      }));
+
       if (newTaskFiles.length > 0) {
         setTone("neutral");
         setStatus(
@@ -414,6 +478,7 @@ export default function BidsPage() {
       setNewTaskDescription("");
       setNewTaskBudget("500");
       setNewTaskDeadline("");
+      setNewTaskChecklist(getSampleChecklist("Content Writing"));
       setNewTaskFiles([]);
       setNewTaskCategory("Content Writing");
       setNewTaskLocation("Remote");
@@ -542,7 +607,7 @@ export default function BidsPage() {
             activeSession={activeSession}
             status={status}
             onHome={() => {
-              router.push("/");
+              router.push("/bids");
               setStatus("Home feed selected.");
             }}
             onBrowseTasks={() =>
@@ -620,14 +685,24 @@ export default function BidsPage() {
                       description={newTaskDescription}
                       files={newTaskFiles}
                       uploadProgress={uploadProgress}
+                      checklist={newTaskChecklist}
                       busy={busy === "create"}
                       onTitleChange={setNewTaskTitle}
-                      onCategoryChange={setNewTaskCategory}
+                      onCategoryChange={handleNewTaskCategoryChange}
                       onLocationChange={setNewTaskLocation}
                       onBudgetChange={setNewTaskBudget}
                       onDeadlineChange={setNewTaskDeadline}
                       onDescriptionChange={setNewTaskDescription}
                       onFilesChange={setNewTaskFiles}
+                      onChecklistChange={setNewTaskChecklist}
+                      onAddChecklistItem={handleAddChecklistItem}
+                      onRemoveChecklistItem={handleRemoveChecklistItem}
+                      onChecklistItemLabelChange={
+                        handleChecklistItemLabelChange
+                      }
+                      onChecklistItemDescriptionChange={
+                        handleChecklistItemDescriptionChange
+                      }
                       onSubmit={createTask}
                     />
                   </section>
@@ -727,7 +802,7 @@ export default function BidsPage() {
                   setShowCreateTask(true);
                   setStatus("Create task form opened.");
                 }}
-                onMyBids={() => void refreshMyBids()}
+                onMyBids={() => router.push("/mybids")}
                 onMessages={() => setStatus("No unread messages.")}
                 onLogout={handleLogout}
               />

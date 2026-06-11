@@ -123,7 +123,6 @@ async function request<T>(
   }
 }
 
-// separate request for file uploads
 async function requestFormData<T>(
   baseUrl: string,
   path: string,
@@ -181,7 +180,6 @@ export const taskArmyApi = {
     return validateResponse(response, loginResponseSchema);
   },
 
-  // ── Update user profile (used on onboarding to set role)
   updateProfile: async (
     baseUrl: string,
     token: string,
@@ -288,47 +286,39 @@ export const taskArmyApi = {
     return validateResponse(response, bidArraySchema);
   },
 
-  // ── Taskarmy submits work (file upload)
-  submitWork: async (
-    baseUrl: string,
-    token: string,
-    taskId: number,
-    file: File,
-    message?: string,
-  ) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    if (message) formData.append("message", message);
-    return requestFormData<Task>(
-      baseUrl,
-      `/tasks/${taskId}/submit`,
-      token,
-      formData,
-    );
-  },
-
-  // ── Client approves submitted work → marks task completed
-  approveWork: async (baseUrl: string, token: string, taskId: number) => {
+  // ✅ FIXED — plain POST, no file/formData
+  submitWork: async (baseUrl: string, token: string, taskId: number) => {
     const response = await request<Task>(
       baseUrl,
-      `/tasks/${taskId}/approve`,
-      "PUT",
+      `/tasks/${taskId}/submit`,
+      "POST",
       { token },
     );
     return validateResponse(response, taskSchema);
   },
 
-  // ── Client requests revision on submitted work
+  // ✅ FIXED — PUT → POST
+  approveWork: async (baseUrl: string, token: string, taskId: number) => {
+    const response = await request<Task>(
+      baseUrl,
+      `/tasks/${taskId}/approve`,
+      "POST",
+      { token },
+    );
+    return validateResponse(response, taskSchema);
+  },
+
+  // ✅ FIXED — PUT → POST, message → note
   requestRevision: async (
     baseUrl: string,
     token: string,
     taskId: number,
-    body: { message: string },
+    body: { note: string },
   ) => {
     const response = await request<Task>(
       baseUrl,
       `/tasks/${taskId}/revision`,
-      "PUT",
+      "POST",
       { token, body },
     );
     return validateResponse(response, taskSchema);

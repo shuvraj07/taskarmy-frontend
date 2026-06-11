@@ -11,6 +11,7 @@ import {
   Loader2,
   Trash2,
 } from "lucide-react";
+import { taskArmyApi } from "@/lib/api";
 import {
   readActiveRole,
   readBaseUrl,
@@ -22,7 +23,6 @@ function getApiUrl() {
   return readBaseUrl().replace(/\/$/, "");
 }
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 interface TaskFile {
   id: string;
   name: string;
@@ -63,9 +63,13 @@ interface ApiBid {
 }
 
 type UserRole = "taskarmy" | "tasker";
+
+// THE KEY FIX: step is now purely controlled by explicit user actions and
+// server state. It is NEVER derived from "deliverable files exist" alone.
+// "upload"    = brief downloaded, user can upload + submit
+// "submitted" = user clicked Submit AND server confirmed it
 type TaskArmyStep = "download" | "upload" | "submitted";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function getFileExt(name: string) {
   return name.split(".").pop()?.toLowerCase() ?? "file";
 }
@@ -123,7 +127,10 @@ function getTaskOwnerId(task: ApiTask): number | null {
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// These statuses mean the task was already submitted before this page load.
+// We use this ONLY on initial load to restore the step from the server.
+const SUBMITTED_STATUSES = ["submitted", "completed", "approved", "in_review"];
+
 export default function TaskFilesPage() {
   const router = useRouter();
   const params = useParams();
@@ -139,50 +146,56 @@ export default function TaskFilesPage() {
     TaskFile[]
   >([]);
 
+  // THE FIX: step is a plain state, set explicitly. Never auto-set by file lists.
   const [taskArmyStep, setTaskArmyStep] = useState<TaskArmyStep>("download");
+
+  // isInitialLoad is true until the very first fetchTaskFiles completes.
+  // On initial load we ARE allowed to set step="submitted" if the server says so.
+  // After that, only the Submit button can set it.
+  const isInitialLoad = useRef(true);
 
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  // True once TaskArmy has uploaded at least one deliverable file this session
+  const [hasUploadedWork, setHasUploadedWork] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewComment, setReviewComment] = useState("");
 
   const taskArmyFileInputRef = useRef<HTMLInputElement>(null);
   const taskerBriefInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Split raw API files into brief vs deliverable ──────────────────────────
+  // Split raw API files into brief vs deliverable.
+  // IMPORTANT: this function never touches taskArmyStep after initial load.
   const splitAndSetFiles = useCallback(
     (
       data: ApiFile[],
       ownerId: number | null,
       userId: number | null,
       userRole: UserRole,
+      taskStatus?: string,
     ) => {
-      console.log("🔍 Processing files:", data);
-      console.log("🔍 Task Owner ID:", ownerId);
-      console.log("🔍 Current User ID:", userId);
-      console.log("🔍 Current Role:", userRole);
-
       if (!data || data.length === 0) {
-        console.log("No files returned from API");
         setTaskerBriefFiles([]);
         setTaskArmySubmittedFiles([]);
-        if (userRole === "taskarmy") setTaskArmyStep("download"); // ← fix
+        // Only set step on initial load
+        if (userRole === "taskarmy" && isInitialLoad.current) {
+          setTaskArmyStep("download");
+        }
         return;
       }
 
       const mapped = data.map((f) => {
         let uploadedBy: "tasker" | "taskarmy" = "tasker";
-
         if (f.uploader_role) {
           uploadedBy = f.uploader_role === "tasker" ? "tasker" : "taskarmy";
         } else if (ownerId !== null) {
           uploadedBy = f.uploader_id === ownerId ? "tasker" : "taskarmy";
-        } else {
-          uploadedBy = "tasker";
         }
-
         return {
           id: String(f.id),
           name: f.file_name,
@@ -206,10 +219,22 @@ export default function TaskFilesPage() {
       setTaskerBriefFiles(briefs);
       setTaskArmySubmittedFiles(deliverables);
 
-      if (userRole === "taskarmy") {
-        if (deliverables.length > 0) {
+      // If deliverables exist (from a previous session), mark hasUploadedWork
+      if (userRole === "taskarmy" && deliverables.length > 0) {
+        setHasUploadedWork(true);
+      }
+
+      // Only update the step on the very first load — not on any subsequent
+      // refresh triggered by upload/delete. This is what stops auto-submission.
+      if (userRole === "taskarmy" && isInitialLoad.current) {
+        const alreadySubmittedOnServer =
+          taskStatus && SUBMITTED_STATUSES.includes(taskStatus);
+
+        if (alreadySubmittedOnServer) {
           setTaskArmyStep("submitted");
         } else if (briefs.length > 0) {
+          // Brief exists → unlock upload step. Even if deliverables exist,
+          // don't assume submitted unless the server says so.
           setTaskArmyStep("upload");
         } else {
           setTaskArmyStep("download");
@@ -219,7 +244,6 @@ export default function TaskFilesPage() {
     [],
   );
 
-  // ── Fetch task details and owner id ───────────────────────────────────────
   const fetchTaskDetails = useCallback(
     async (
       token: string,
@@ -227,33 +251,20 @@ export default function TaskFilesPage() {
     ): Promise<{ ownerId: number | null; task: ApiTask | null }> => {
       const apiUrl = getApiUrl();
       try {
-        console.log(
-          `Fetching task ${taskId} details from ${apiUrl}/tasks/${taskId}...`,
-        );
         const res = await fetch(`${apiUrl}/tasks/${taskId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        console.log(`Task API response status: ${res.status}`);
-
         if (res.ok) {
           const task: ApiTask = await res.json();
-          console.log("Full task response:", JSON.stringify(task, null, 2));
           const ownerId = getTaskOwnerId(task);
-          console.log("Extracted owner ID:", ownerId);
           return { ownerId, task };
         }
-
-        console.warn(`Task detail endpoint returned ${res.status}`);
 
         const listPath = userRole === "tasker" ? "/tasks/my" : "/tasks/";
         const listRes = await fetch(`${apiUrl}${listPath}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        if (!listRes.ok) {
-          return { ownerId: null, task: null };
-        }
+        if (!listRes.ok) return { ownerId: null, task: null };
 
         const tasks: ApiTask[] = await listRes.json();
         let task = tasks.find((item) => String(item.id) === String(taskId));
@@ -280,7 +291,6 @@ export default function TaskFilesPage() {
         }
 
         if (!task) return { ownerId: null, task: null };
-
         const ownerId = getTaskOwnerId(task);
         return { ownerId, task };
       } catch (error) {
@@ -291,7 +301,6 @@ export default function TaskFilesPage() {
     [taskId],
   );
 
-  // ── Fetch all files for this task ─────────────────────────────────────────
   const fetchTaskFiles = useCallback(
     async (
       token: string,
@@ -299,6 +308,7 @@ export default function TaskFilesPage() {
       userId: number | null,
       userRole: UserRole,
       fallbackFiles: ApiFile[] = [],
+      taskStatus?: string,
     ) => {
       const apiUrl = getApiUrl();
       setLoadingFiles(true);
@@ -307,52 +317,46 @@ export default function TaskFilesPage() {
         const res = await fetch(`${apiUrl}/files/task/${taskId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        console.log(`🔍 Files API response status: ${res.status}`);
-
         if (res.status === 404) {
-          splitAndSetFiles(fallbackFiles, ownerId, userId, userRole);
-          setLoadingFiles(false);
+          splitAndSetFiles(
+            fallbackFiles,
+            ownerId,
+            userId,
+            userRole,
+            taskStatus,
+          );
           return;
         }
-
-        if (!res.ok) {
-          throw new Error(`Failed to load files (${res.status})`);
-        }
-
+        if (!res.ok) throw new Error(`Failed to load files (${res.status})`);
         const data: ApiFile[] = await res.json();
-        console.log(`🔍 API returned ${data.length} files:`, data);
-
         splitAndSetFiles(
           data.length > 0 ? data : fallbackFiles,
           ownerId,
           userId,
           userRole,
+          taskStatus,
         );
       } catch (e: unknown) {
-        console.error("Error fetching files:", e);
         setErrorMsg(e instanceof Error ? e.message : "Failed to load files");
       } finally {
         setLoadingFiles(false);
+        // After the first fetch, lock the step so uploads never auto-change it
+        isInitialLoad.current = false;
       }
     },
     [taskId, splitAndSetFiles],
   );
 
-  // ── Init: role → task owner → files ───────────────────────────────────────
   useEffect(() => {
     const activeRole = readActiveRole();
     const userRole = activeRole === "taskarmy" ? "taskarmy" : "tasker";
     setRole(userRole);
 
-    // reset step on every page load
+    isInitialLoad.current = true;
     if (userRole === "taskarmy") setTaskArmyStep("download");
 
     const userId = getCurrentUserId();
     setCurrentUserId(userId);
-    console.log("🔍 Current user ID:", userId);
-    console.log("🔍 Current role:", userRole);
-    console.log("🔍 Task ID from URL:", taskId);
 
     const token = getToken();
     if (!token) {
@@ -364,22 +368,25 @@ export default function TaskFilesPage() {
     fetchTaskDetails(token, userRole).then(({ ownerId, task }) => {
       setTaskOwnerId(ownerId);
       setTaskDetails(task);
-
       if (!task) {
         setErrorMsg(`Task #${taskId} not found or you don't have access.`);
         setLoadingFiles(false);
         return;
       }
-
-      fetchTaskFiles(token, ownerId, userId, userRole, task.files ?? []);
+      fetchTaskFiles(
+        token,
+        ownerId,
+        userId,
+        userRole,
+        task.files ?? [],
+        task.status,
+      );
     });
   }, [taskId, fetchTaskDetails, fetchTaskFiles]);
 
-  // ── Upload files ─────────────────────────────────────────────────────────
   const uploadFiles = useCallback(
     async (selectedFiles: FileList, isTaskerUpload: boolean) => {
       if (!selectedFiles || selectedFiles.length === 0) return;
-
       setUploading(true);
       setUploadProgress(0);
       setErrorMsg(null);
@@ -392,33 +399,22 @@ export default function TaskFilesPage() {
         const file = fileArray[i];
         const formData = new FormData();
         formData.append("file", file);
-
         try {
           const progressInterval = setInterval(() => {
             setUploadProgress((p) => Math.min(p + 5, 90));
           }, 100);
-
-          console.log(
-            `📤 Uploading ${file.name} to ${apiUrl}/files/upload?task_id=${taskId}...`,
-          );
           const res = await fetch(`${apiUrl}/files/upload?task_id=${taskId}`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
             body: formData,
           });
-
           clearInterval(progressInterval);
-
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err?.detail ?? `Upload failed (${res.status})`);
           }
-
-          const uploadedFile = await res.json();
-          console.log("✅ Uploaded file:", uploadedFile);
           setUploadProgress(Math.round(((i + 1) / fileArray.length) * 100));
         } catch (e: unknown) {
-          console.error("Upload error:", e);
           setErrorMsg(e instanceof Error ? e.message : "Upload failed");
           setUploading(false);
           setUploadProgress(0);
@@ -429,16 +425,23 @@ export default function TaskFilesPage() {
       setUploading(false);
       setUploadProgress(0);
 
+      // Refresh files — isInitialLoad is false here so step will NOT change
       const refreshToken = getToken();
       if (refreshToken) {
-        console.log("🔄 Refreshing files after upload...");
         await fetchTaskFiles(refreshToken, taskOwnerId, currentUserId, role);
+      }
+
+      // After a TaskArmy upload, always make sure we're on the upload step
+      // so the Submit button is visible. Step only leaves "upload" when the
+      // user explicitly clicks Submit (which calls the API and sets "submitted").
+      if (role === "taskarmy") {
+        setHasUploadedWork(true);
+        setTaskArmyStep("upload");
       }
     },
     [taskId, role, taskOwnerId, currentUserId, fetchTaskFiles],
   );
 
-  // ── Delete file ────────────────────────────────────────────────────────────
   const deleteFile = useCallback(
     async (id: string) => {
       const token = getToken();
@@ -449,43 +452,158 @@ export default function TaskFilesPage() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error(`Delete failed (${res.status})`);
-
         const refreshToken = getToken();
         if (refreshToken) {
           await fetchTaskFiles(refreshToken, taskOwnerId, currentUserId, role);
         }
       } catch (e: unknown) {
-        console.error("Delete error:", e);
         setErrorMsg(e instanceof Error ? e.message : "Delete failed");
       }
     },
     [fetchTaskFiles, taskOwnerId, currentUserId, role],
   );
 
-  // ── Submit work (TaskArmy) ─────────────────────────────────────────────────
+  // THE ONLY PLACE that sets step="submitted".
+  // Calls the backend, and only advances the UI if the server responds OK.
   const handleSubmitWork = async () => {
     if (taskArmySubmittedFiles.length === 0) {
       setErrorMsg("Please upload your completed work before submitting.");
       return;
     }
+    const token = getToken();
+    if (!token) {
+      setErrorMsg("Please log in to submit work.");
+      return;
+    }
     setSubmitting(true);
-    setTaskArmyStep("submitted");
-    setSubmitting(false);
     setErrorMsg(null);
-  };
-
-  // ── Handle file drop ───────────────────────────────────────────────────────
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    if (role === "tasker") {
-      uploadFiles(e.dataTransfer.files, true);
-    } else {
-      uploadFiles(e.dataTransfer.files, false);
+    setStatusMsg(null);
+    try {
+      const apiUrl = getApiUrl();
+      // ⚠️ Change this URL to match your backend endpoint:
+      // Common variants: /tasks/{id}/submit  |  /tasks/{id}/complete  |  /tasks/{id}/deliver
+      const res = await fetch(`${apiUrl}/tasks/${taskId}/submit`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ task_id: Number(taskId) }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(
+          errBody?.detail ??
+            errBody?.message ??
+            `Submit failed (${res.status})`,
+        );
+      }
+      // Only now do we show "submitted" UI
+      setTaskArmyStep("submitted");
+      setStatusMsg("Work submitted to the Tasker for review.");
+    } catch (e: unknown) {
+      setErrorMsg(e instanceof Error ? e.message : "Submit failed");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // ── Refresh files ──────────────────────────────────────────────────────────
+  const handleApproveWork = async () => {
+    const token = getToken();
+    if (!token) {
+      setErrorMsg("Please log in to approve work.");
+      return;
+    }
+    if (taskArmySubmittedFiles.length === 0) {
+      setErrorMsg("No submitted files are available to approve.");
+      return;
+    }
+    setReviewBusy(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const response = await taskArmyApi.approveWork(
+        getApiUrl(),
+        token,
+        Number(taskId),
+      );
+      if (!response.ok)
+        throw new Error(response.error ?? "Failed to approve work.");
+      setStatusMsg("Work approved. Task is now marked complete.");
+      const { ownerId, task } = await fetchTaskDetails(token, role);
+      setTaskOwnerId(ownerId);
+      setTaskDetails(task);
+      await fetchTaskFiles(
+        token,
+        ownerId,
+        currentUserId,
+        role,
+        [],
+        task?.status,
+      );
+    } catch (error) {
+      setErrorMsg(
+        error instanceof Error ? error.message : "Failed to approve work.",
+      );
+    } finally {
+      setReviewBusy(false);
+    }
+  };
+
+  const handleRequestRevision = async () => {
+    const token = getToken();
+    if (!token) {
+      setErrorMsg("Please log in to request a revision.");
+      return;
+    }
+    if (!reviewComment.trim()) {
+      setErrorMsg("Please add a revision comment before requesting changes.");
+      return;
+    }
+    if (taskArmySubmittedFiles.length === 0) {
+      setErrorMsg("No submitted files are available to request revision for.");
+      return;
+    }
+    setReviewBusy(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+    try {
+      const response = await taskArmyApi.requestRevision(
+        getApiUrl(),
+        token,
+        Number(taskId),
+        { note: reviewComment.trim() },
+      );
+      if (!response.ok)
+        throw new Error(response.error ?? "Failed to request revision.");
+      setStatusMsg("Revision requested. TaskArmy will receive your comment.");
+      setReviewComment("");
+      const { ownerId, task } = await fetchTaskDetails(token, role);
+      setTaskOwnerId(ownerId);
+      setTaskDetails(task);
+      await fetchTaskFiles(
+        token,
+        ownerId,
+        currentUserId,
+        role,
+        [],
+        task?.status,
+      );
+    } catch (error) {
+      setErrorMsg(
+        error instanceof Error ? error.message : "Failed to request revision.",
+      );
+    } finally {
+      setReviewBusy(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    uploadFiles(e.dataTransfer.files, role === "tasker");
+  };
+
   const handleRefresh = useCallback(() => {
     const token = getToken();
     if (!token) return;
@@ -494,7 +612,6 @@ export default function TaskFilesPage() {
 
   return (
     <div className="min-h-screen w-full bg-[#f8f6ff]">
-      {/* Header */}
       <header
         className="sticky top-0 z-20 bg-gradient-to-br from-[#5b35c8] via-[#4c24b7] to-[#371184] px-4 pb-4 pt-safe-4 text-white shadow-[0_4px_24px_rgba(41,24,79,0.25)]"
         style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
@@ -514,8 +631,8 @@ export default function TaskFilesPage() {
                 File Exchange
               </p>
               <p className="truncate text-[11px] font-medium text-white/70">
-                Task #{taskId}{" "}
-                {taskDetails?.title ? `· ${taskDetails.title}` : ""}
+                Task #{taskId}
+                {taskDetails?.title ? ` · ${taskDetails.title}` : ""}
               </p>
             </div>
           </div>
@@ -533,7 +650,6 @@ export default function TaskFilesPage() {
             </span>
           </div>
         </div>
-
         <div className="mt-3 flex items-start gap-2 rounded-xl bg-white/10 px-3 py-2">
           <CheckCircle2
             className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400"
@@ -554,7 +670,6 @@ export default function TaskFilesPage() {
             "max(2rem, calc(env(safe-area-inset-bottom) + 1.5rem))",
         }}
       >
-        {/* Error banner */}
         {errorMsg && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
             ⚠️ {errorMsg}
@@ -564,6 +679,11 @@ export default function TaskFilesPage() {
             >
               Dismiss
             </button>
+          </div>
+        )}
+        {statusMsg && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+            ✅ {statusMsg}
           </div>
         )}
 
@@ -576,10 +696,10 @@ export default function TaskFilesPage() {
             <FolderOpen className="mx-auto mb-3 h-12 w-12 text-amber-400" />
             <p className="font-extrabold text-amber-700">Task Not Found</p>
             <p className="mt-1 text-sm text-amber-600">
-              Task #{taskId} does not exist or you don't have access to it.
+              Task #{taskId} does not exist or you don&apos;t have access to it.
             </p>
             <p className="mt-2 text-xs text-amber-500">
-              Make sure you've accepted a bid on this task first.
+              Make sure you&apos;ve accepted a bid on this task first.
             </p>
             <button
               type="button"
@@ -591,7 +711,6 @@ export default function TaskFilesPage() {
           </div>
         ) : (
           <>
-            {/* ════ TASKER VIEW ════ */}
             {role === "tasker" && (
               <>
                 <Section
@@ -636,17 +755,61 @@ export default function TaskFilesPage() {
                   {taskArmySubmittedFiles.length === 0 ? (
                     <EmptyWaiting text="Waiting for TaskArmy to submit completed work…" />
                   ) : (
-                    <FileList
-                      files={taskArmySubmittedFiles}
-                      emptyText=""
-                      showDelete={false}
-                    />
+                    <>
+                      <FileList
+                        files={taskArmySubmittedFiles}
+                        emptyText=""
+                        showDelete={false}
+                      />
+                      <div className="mt-4 space-y-3 rounded-xl border border-[#ded7ee] bg-white p-4">
+                        <p className="text-sm font-bold text-[#21145f]">
+                          Review submitted work
+                        </p>
+                        <p className="text-xs font-semibold text-[#6d668a]">
+                          Approve the completed work or request a revision with
+                          a comment.
+                        </p>
+                        <label className="block">
+                          <span className="text-xs font-bold uppercase tracking-wide text-[#786fa0]">
+                            Revision comment
+                          </span>
+                          <textarea
+                            className="mt-2 min-h-[100px] w-full resize-none rounded-md border border-[#ded7ee] bg-[#fbfaff] px-3 py-2 text-sm font-semibold text-[#21145f] outline-none focus:border-[#4f22bd]"
+                            value={reviewComment}
+                            onChange={(e) => setReviewComment(e.target.value)}
+                            placeholder="Leave a note if you need TaskArmy to redo or refine the work"
+                          />
+                        </label>
+                        {statusMsg && (
+                          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+                            {statusMsg}
+                          </div>
+                        )}
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            className="min-h-12 rounded-md bg-emerald-600 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                            onClick={handleApproveWork}
+                            disabled={reviewBusy}
+                          >
+                            {reviewBusy ? "Processing…" : "Approve work"}
+                          </button>
+                          <button
+                            type="button"
+                            className="min-h-12 rounded-md border border-[#ded7ee] bg-white px-4 py-3 text-sm font-extrabold text-[#371184] transition hover:bg-[#f4efff] disabled:opacity-60"
+                            onClick={handleRequestRevision}
+                            disabled={reviewBusy}
+                          >
+                            {reviewBusy ? "Processing…" : "Request revision"}
+                          </button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </Section>
               </>
             )}
 
-            {/* ════ TASKARMY VIEW ════ */}
             {role === "taskarmy" && (
               <>
                 <StepIndicator currentStep={taskArmyStep} />
@@ -686,7 +849,7 @@ export default function TaskFilesPage() {
                           className="mt-3 w-full rounded-xl bg-[#4f22bd] py-3 text-sm font-extrabold text-white transition hover:bg-[#3a1696]"
                           onClick={() => setTaskArmyStep("upload")}
                         >
-                          📥 I've Downloaded & Read the Brief
+                          📥 I&apos;ve Downloaded &amp; Read the Brief
                         </button>
                       )}
                     </>
@@ -749,34 +912,33 @@ export default function TaskFilesPage() {
                             uploadFiles(e.target.files, false);
                         }}
                       />
-
-                      {taskArmySubmittedFiles.length > 0 && !uploading && (
-                        <>
-                          <FileList
-                            files={taskArmySubmittedFiles}
-                            emptyText=""
-                            onDelete={deleteFile}
-                            showDelete
-                          />
-                          <button
-                            type="button"
-                            className="mt-3 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 py-3.5 text-sm font-extrabold text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)] transition active:opacity-80 disabled:opacity-50"
-                            onClick={handleSubmitWork}
-                            disabled={submitting}
-                          >
-                            {submitting
-                              ? "Submitting..."
-                              : "✅ Submit Work to Tasker"}
-                          </button>
-                        </>
-                      )}
+                      {(taskArmySubmittedFiles.length > 0 || hasUploadedWork) &&
+                        !uploading && (
+                          <>
+                            <FileList
+                              files={taskArmySubmittedFiles}
+                              emptyText=""
+                              onDelete={deleteFile}
+                              showDelete
+                            />
+                            <button
+                              type="button"
+                              className="mt-3 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 py-3.5 text-sm font-extrabold text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)] transition active:opacity-80 disabled:opacity-50"
+                              onClick={handleSubmitWork}
+                              disabled={submitting}
+                            >
+                              {submitting
+                                ? "Submitting…"
+                                : "✅ Submit Work to Tasker"}
+                            </button>
+                          </>
+                        )}
                     </>
                   )}
                 </Section>
               </>
             )}
 
-            {/* Activity log */}
             <Section
               title="📋 Activity Log"
               subtitle="Upload history for this task"
@@ -822,7 +984,6 @@ export default function TaskFilesPage() {
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
 function Section({ title, subtitle, children, highlight, locked }: any) {
   return (
     <div
@@ -984,18 +1145,14 @@ function StepIndicator({ currentStep }: { currentStep: TaskArmyStep }) {
               {i < idx ? "✓" : i + 1}
             </div>
             <p
-              className={`mt-1 text-[10px] font-extrabold leading-tight ${
-                i === idx ? "text-[#4f22bd]" : "text-[#786fa0]"
-              }`}
+              className={`mt-1 text-[10px] font-extrabold leading-tight ${i === idx ? "text-[#4f22bd]" : "text-[#786fa0]"}`}
             >
               {step.label}
             </p>
           </div>
           {i < steps.length - 1 && (
             <div
-              className={`mx-1.5 h-0.5 flex-1 rounded-full transition-all sm:mx-2 ${
-                i < idx ? "bg-emerald-400" : "bg-[#ded7ee]"
-              }`}
+              className={`mx-1.5 h-0.5 flex-1 rounded-full transition-all sm:mx-2 ${i < idx ? "bg-emerald-400" : "bg-[#ded7ee]"}`}
             />
           )}
         </div>

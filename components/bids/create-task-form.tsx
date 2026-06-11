@@ -2,7 +2,7 @@
 
 import { Check, ListChecks, Plus, Upload, X } from "lucide-react";
 import { FormEvent } from "react";
-import type { TaskCategory } from "./types";
+import type { ChecklistItem, TaskCategory } from "./types";
 import { formatFileSize, getFileEmoji, getSampleChecklist } from "./helpers";
 
 const categories: Array<{ label: TaskCategory; icon?: React.ComponentType }> = [
@@ -22,6 +22,7 @@ export function CreateTaskForm({
   description,
   files,
   uploadProgress,
+  checklist,
   busy,
   onTitleChange,
   onCategoryChange,
@@ -30,6 +31,11 @@ export function CreateTaskForm({
   onDeadlineChange,
   onDescriptionChange,
   onFilesChange,
+  onChecklistChange,
+  onAddChecklistItem,
+  onRemoveChecklistItem,
+  onChecklistItemLabelChange,
+  onChecklistItemDescriptionChange,
   onSubmit,
 }: {
   title: string;
@@ -40,6 +46,7 @@ export function CreateTaskForm({
   description: string;
   files: File[];
   uploadProgress: Record<string, "uploading" | "done" | "error">;
+  checklist: ChecklistItem[];
   busy: boolean;
   onTitleChange: (v: string) => void;
   onCategoryChange: (v: Exclude<TaskCategory, "All">) => void;
@@ -48,6 +55,11 @@ export function CreateTaskForm({
   onDeadlineChange: (v: string) => void;
   onDescriptionChange: (v: string) => void;
   onFilesChange: (files: File[]) => void;
+  onChecklistChange: (items: ChecklistItem[]) => void;
+  onAddChecklistItem: () => void;
+  onRemoveChecklistItem: (id: string) => void;
+  onChecklistItemLabelChange: (id: string, value: string) => void;
+  onChecklistItemDescriptionChange: (id: string, value: string) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
@@ -236,27 +248,78 @@ export function CreateTaskForm({
         </div>
       </div>
 
-      {/* Checklist preview */}
+      {/* Checklist editor */}
       <div className="mt-4 rounded-lg border border-[#ded7ee] bg-[#f8f6ff] p-3">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#786fa0]">
           <ListChecks className="h-4 w-4" aria-hidden="true" />
           Checklist
         </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-3">
-          {getSampleChecklist(category).map((item) => (
-            <div
-              key={item.id}
-              className="rounded-md border border-[#ded7ee] bg-white p-3"
-            >
-              <p className="text-sm font-extrabold text-[#21145f]">
-                {item.label}
-              </p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-[#6d668a]">
-                {item.description}
-              </p>
-            </div>
-          ))}
-        </div>
+
+        {checklist.length === 0 ? (
+          <div className="mt-3 rounded-md border border-dashed border-[#c4b8ef] bg-white p-4 text-sm font-semibold text-[#6d668a]">
+            No checklist items yet. Add one to guide TaskArmy work.
+          </div>
+        ) : (
+          <div className="mt-3 space-y-3">
+            {checklist.map((item, index) => (
+              <div
+                key={item.id}
+                className="rounded-md border border-[#ded7ee] bg-white p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-wide text-[#786fa0]">
+                      Item {index + 1}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-red-500 transition hover:text-red-700"
+                    onClick={() => onRemoveChecklistItem(item.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+                <label className="block">
+                  <span className="text-sm font-bold text-[#21145f]">
+                    Label
+                  </span>
+                  <input
+                    className="mt-1 min-h-11 w-full rounded-md border border-[#ded7ee] bg-[#fbfaff] px-3 text-sm font-semibold text-[#21145f] outline-none focus:border-[#4f22bd]"
+                    value={item.label}
+                    onChange={(e) =>
+                      onChecklistItemLabelChange(item.id, e.target.value)
+                    }
+                    placeholder="Example: Confirm design files"
+                    required
+                  />
+                </label>
+                <label className="mt-3 block">
+                  <span className="text-sm font-bold text-[#21145f]">
+                    Description
+                  </span>
+                  <textarea
+                    className="mt-1 min-h-20 w-full resize-none rounded-md border border-[#ded7ee] bg-[#fbfaff] px-3 py-2 text-sm font-semibold text-[#21145f] outline-none focus:border-[#4f22bd]"
+                    value={item.description}
+                    onChange={(e) =>
+                      onChecklistItemDescriptionChange(item.id, e.target.value)
+                    }
+                    placeholder="Describe what TaskArmy should check before delivery"
+                  />
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="mt-4 inline-flex items-center gap-2 rounded-md bg-[#4f22bd] px-4 py-2 text-sm font-bold text-white"
+          onClick={onAddChecklistItem}
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add checklist item
+        </button>
       </div>
 
       <button
