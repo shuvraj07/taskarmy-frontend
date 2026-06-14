@@ -250,7 +250,7 @@ Improvement ideas:
 
 ## Environment configuration
 
-The app defaults to `http://127.0.0.1:8000` for the backend.
+The app defaults to `https://taskarmy.onrender.com` for the backend.
 
 To use another backend URL, set:
 

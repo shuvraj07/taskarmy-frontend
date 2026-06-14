@@ -37,7 +37,7 @@ const links = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [baseUrl, setBaseUrl] = useState("http://127.0.0.1:8000");
+  const [baseUrl, setBaseUrl] = useState("https://taskarmy.onrender.com");
   const [sessions, setSessions] = useState<Partial<Record<Role, Session>>>({});
 
   useEffect(() => {

@@ -3,7 +3,7 @@ import type { Role, Session } from "@/lib/types";
 const SESSION_KEY = "taskarmy.sessions";
 const ACTIVE_ROLE_KEY = "taskarmy.activeRole";
 const BASE_URL_KEY = "taskarmy.baseUrl";
-const DEFAULT_BASE_URL = "http://127.0.0.1:8000";
+const DEFAULT_BASE_URL = "https://taskarmy.onrender.com";
 const SESSION_CHANGED_EVENT = "taskarmy-session-changed";
 const FALLBACK_SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
 
