@@ -1,5 +1,6 @@
 import type { Bid, BidCreatePayload, Task } from "@/lib/types";
-import { bidArraySchema, bidSchema, taskSchema } from "@/lib/schemas";
+import { bidArraySchema, bidSchema } from "@/lib/schemas";
+import { taskSchema } from "@/features/tasks/validation/schemas";
 import { request, validateResponse } from "@/lib/api/client";
 
 export const bidsApi = {
