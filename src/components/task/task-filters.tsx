@@ -8,7 +8,7 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
-import type { TaskCategory } from "@/components/bid/types";
+import type { TaskCategory } from "@/features/bids";
 
 const categories: Array<{ label: TaskCategory; icon?: typeof ClipboardList }> =
   [

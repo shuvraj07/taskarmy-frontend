@@ -2,7 +2,7 @@
 
 import { Check, ListChecks, Plus, Upload, X } from "lucide-react";
 import { FormEvent } from "react";
-import type { ChecklistItem, TaskCategory } from "@/components/bid/types";
+import type { ChecklistItem, TaskCategory } from "@/features/bids";
 import { formatFileSize, getFileEmoji } from "@/lib/format";
 
 const categories: Array<{ label: TaskCategory; icon?: React.ComponentType }> = [

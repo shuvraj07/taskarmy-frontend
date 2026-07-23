@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RefreshCw, Send } from "lucide-react";
 import { tasksApi } from "@/lib/api/tasks";
-import { bidsApi } from "@/lib/api/bids";
+import { bidsApi } from "@/features/bids/api/bids";
 import { readBaseUrl, readSessions, removeSession } from "@/lib/session-store";
 import type { Session, Task } from "@/lib/types";
 import { AppShell } from "@/components/layout/navbar";

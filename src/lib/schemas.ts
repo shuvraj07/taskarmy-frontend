@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { bidArraySchema } from "@/features/bids/validation/schemas";
 
 export const roleSchema = z.enum(["client", "tasker"]);
 
@@ -28,20 +29,6 @@ export const loginResponseSchema = z.object({
   email: z.string().optional(),
   role: backendRoleSchema.optional(),
 });
-
-export const bidSchema = z.object({
-  id: z.number(),
-  amount: z.number(),
-  message: z.string().optional(),
-  status: z.string().optional(),
-  task_id: z.number().optional(),
-  bidder_id: z.number().optional(),
-  bidder_name: z.string().optional(),
-  bidder_email: z.string().optional(),
-  created_at: z.string().optional(),
-});
-
-export const bidArraySchema = z.array(bidSchema);
 
 export const taskSchema = z.object({
   id: z.number(),

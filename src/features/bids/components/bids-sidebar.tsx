@@ -9,6 +9,7 @@ import {
   LogOut,
   MessageCircle,
   Shield,
+  Wallet,
 } from "lucide-react";
 import type { Role, Session } from "@/lib/types";
 
@@ -22,6 +23,7 @@ export function BidsSidebar({
   onBrowseTasks,
   onReviewBids,
   onMyBids,
+  onWallet,
   onMessages,
   onLogout,
   onLogin,
@@ -33,6 +35,7 @@ export function BidsSidebar({
   onBrowseTasks: () => void;
   onReviewBids: () => void;
   onMyBids: () => void;
+  onWallet: () => void;
   onMessages: () => void;
   onLogout: () => void;
   onLogin: () => void;
@@ -87,6 +90,7 @@ export function BidsSidebar({
               <SidebarItem icon={Gavel} label="My Bids" onClick={onMyBids} />
             </>
           )}
+          <SidebarItem icon={Wallet} label="Wallet" onClick={onWallet} />
           <SidebarItem
             icon={MessageCircle}
             label="Messages"

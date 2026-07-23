@@ -1,5 +1,5 @@
 import type { Task } from "@/lib/types";
-import type { ChecklistItem, TaskCategory } from "@/components/bid/types";
+import type { ChecklistItem, TaskCategory } from "./types";
 
 const sampleChecklists: Record<
   Exclude<TaskCategory, "All">,
@@ -147,21 +147,3 @@ export function getSampleChecklist(
   return sampleChecklists[category];
 }
 
-export function buildPosterProfileHref(
-  task: Task,
-  posterId: number,
-  posterName: string,
-): string {
-  const params = new URLSearchParams();
-  params.set("name", posterName);
-  const email =
-    task.tasker_email ??
-    task.owner_email ??
-    task.poster?.email ??
-    task.owner?.email;
-  const avatar = task.poster?.avatar_url ?? task.owner?.avatar_url;
-  if (email) params.set("email", email);
-  if (avatar) params.set("avatar", avatar);
-  const query = params.toString();
-  return `/tasker/profile/${posterId}${query ? `?${query}` : ""}`;
-}

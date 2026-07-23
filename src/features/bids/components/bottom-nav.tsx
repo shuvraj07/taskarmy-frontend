@@ -7,6 +7,7 @@ import {
   LogOut,
   MessageCircle,
   Plus,
+  Wallet,
 } from "lucide-react";
 
 export function BottomNav({
@@ -17,6 +18,7 @@ export function BottomNav({
   onBrowseTasks,
   onPost,
   onMyBids,
+  onWallet,
   onMessages,
   onLogout,
 }: {
@@ -27,6 +29,7 @@ export function BottomNav({
   onBrowseTasks: () => void;
   onPost: () => void;
   onMyBids: () => void;
+  onWallet: () => void;
   onMessages: () => void;
   onLogout: () => void;
 }) {
@@ -45,6 +48,7 @@ export function BottomNav({
       {isTasker && (
         <BottomTab icon={Gavel} label="My Bids" onClick={onMyBids} />
       )}
+      <BottomTab icon={Wallet} label="Wallet" onClick={onWallet} />
       <BottomTab icon={MessageCircle} label="Messages" onClick={onMessages} />
       {roleLabel && (
         <BottomTab icon={LogOut} label="Logout" onClick={onLogout} />

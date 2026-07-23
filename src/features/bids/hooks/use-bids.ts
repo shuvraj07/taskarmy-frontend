@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { bidsApi } from "@/lib/api/bids";
+import { bidsApi } from "../api/bids";
 import { readBaseUrl } from "@/lib/session-store";
 import type { BidCreatePayload, Session } from "@/lib/types";
 
