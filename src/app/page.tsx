@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, Briefcase, Users, Zap } from "lucide-react";
 import { Button, Card } from "@/components/ui";
-import { readActiveRole } from "@/lib/session-store";
+import { readActiveRole } from "@/features/auth";
 
 export default function Home() {
   const router = useRouter();

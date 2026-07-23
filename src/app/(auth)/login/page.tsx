@@ -7,8 +7,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
-import { authApi } from "@/lib/api/auth";
-import { mapBackendRoleToFrontend, readBaseUrl, writeSession } from "@/lib/session-store";
+import { authApi, mapBackendRoleToFrontend, readBaseUrl, writeSession } from "@/features/auth";
 import { AuthShell } from "@/components/layout/auth-shell";
 import { Button, Card, PageHeader, StatusBox } from "@/components/ui";
 
@@ -57,9 +56,14 @@ function LoginForm() {
           throw new Error(backendResponse.error ?? "Backend auth failed");
         }
 
-        // STEP 4 — check if backend already knows this user's role
-        const backendRole = (backendResponse.data as { role?: string }).role;
-        const frontendRole = mapBackendRoleToFrontend(backendRole);
+        const accessToken = backendResponse.data.access_token;
+
+        // STEP 4 — the token-exchange response never includes a role, so ask
+        // /auth/me (the source of truth) whether this user already has one.
+        const meResponse = await authApi.me(baseUrl, accessToken);
+        const frontendRole = meResponse.ok
+          ? mapBackendRoleToFrontend(meResponse.data?.role)
+          : null;
 
         // STEP 5 — save session and redirect
         if (frontendRole) {
@@ -67,7 +71,7 @@ function LoginForm() {
           writeSession({
             role: frontendRole,
             email: userInfo.email,
-            token: backendResponse.data.access_token,
+            token: accessToken,
             fullName: userInfo.name,
             avatarUrl: userInfo.picture,
           });
@@ -79,7 +83,7 @@ function LoginForm() {
           writeSession({
             role: "tasker", // temp placeholder until onboarding sets real role
             email: userInfo.email,
-            token: backendResponse.data.access_token,
+            token: accessToken,
             fullName: userInfo.name,
             avatarUrl: userInfo.picture,
           });

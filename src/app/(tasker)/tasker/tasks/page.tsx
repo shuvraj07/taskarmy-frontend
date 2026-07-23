@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { RefreshCw, Send } from "lucide-react";
 import { tasksApi } from "@/lib/api/tasks";
 import { bidsApi } from "@/lib/api/bids";
-import { readBaseUrl, readSessions, removeSession } from "@/lib/session-store";
+import { readBaseUrl, readSessions, removeSession } from "@/features/auth";
 import type { Session, Task } from "@/lib/types";
 import { AppShell } from "@/components/layout/navbar";
 import { Button, Card, Field, StatusBox, TextArea } from "@/components/ui";

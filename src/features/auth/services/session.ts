@@ -28,18 +28,35 @@ function notifySessionChanged() {
   window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
 }
 
-export function isTokenExpired(token: string, now = Date.now()): boolean {
+function decodeTokenPayload(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split(".")[1];
-    if (!payload) return false;
-
-    const parsed = JSON.parse(decodeBase64Url(payload)) as { exp?: unknown };
-    if (typeof parsed.exp !== "number") return false;
-
-    return now >= parsed.exp * 1000;
+    if (!payload) return null;
+    return JSON.parse(decodeBase64Url(payload)) as Record<string, unknown>;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function isTokenExpired(token: string, now = Date.now()): boolean {
+  const payload = decodeTokenPayload(token);
+  // Can't even parse this as a token — fail closed rather than letting a
+  // corrupted/forged cookie value through as "not expired".
+  if (!payload) return true;
+  if (typeof payload.exp !== "number") return false;
+
+  return now >= payload.exp * 1000;
+}
+
+// How long the role cookie should live, mirroring the token's own `exp`
+// claim so the cookie can't outlive (or expire well before) the token it
+// stands in for. Falls back to the session TTL for tokens without `exp`.
+function tokenMaxAgeSeconds(token: string, now = Date.now()): number {
+  const payload = decodeTokenPayload(token);
+  const exp = payload && typeof payload.exp === "number" ? payload.exp : null;
+  if (exp === null) return FALLBACK_SESSION_TTL / 1000;
+
+  return Math.max(Math.floor((exp * 1000 - now) / 1000), 0);
 }
 
 function isSessionExpired(session: Session, now = Date.now()): boolean {
@@ -51,7 +68,9 @@ function isSessionExpired(session: Session, now = Date.now()): boolean {
 
 function setRoleTokenCookie(role: Role, token: string) {
   if (typeof document === "undefined") return;
-  document.cookie = `${role}_token=${encodeURIComponent(token)}; path=/; max-age=${60 * 60 * 24 * 7}`;
+  const maxAge = tokenMaxAgeSeconds(token);
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${role}_token=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
 }
 
 function removeRoleTokenCookie(role: Role) {
@@ -169,25 +188,20 @@ export function writeBaseUrl(baseUrl: string) {
 
 export function readCurrentUserId(): number | null {
   if (typeof window === "undefined") return null;
-  try {
-    const session = readActiveSession();
-    if (!session?.token) return null;
 
-    const payload = session.token.split(".")[1];
-    if (!payload) return null;
+  const session = readActiveSession();
+  if (!session?.token) return null;
 
-    const decoded = JSON.parse(decodeBase64Url(payload)) as {
-      sub?: string | number;
-      user_id?: number;
-      id?: number;
-    };
+  const payload = decodeTokenPayload(session.token) as {
+    sub?: string | number;
+    user_id?: number;
+    id?: number;
+  } | null;
+  if (!payload) return null;
 
-    const raw = decoded.sub ?? decoded.user_id ?? decoded.id;
-    if (raw === undefined || raw === null) return null;
+  const raw = payload.sub ?? payload.user_id ?? payload.id;
+  if (raw === undefined || raw === null) return null;
 
-    const id = Number(raw);
-    return isNaN(id) ? null : id;
-  } catch {
-    return null;
-  }
+  const id = Number(raw);
+  return isNaN(id) ? null : id;
 }

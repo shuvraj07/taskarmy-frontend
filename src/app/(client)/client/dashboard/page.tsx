@@ -13,7 +13,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { readSessions } from "@/lib/session-store";
+import { readSessions } from "@/features/auth";
 
 Chart.register(
   DoughnutController,

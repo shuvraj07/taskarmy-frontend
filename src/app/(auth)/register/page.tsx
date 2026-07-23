@@ -8,9 +8,7 @@ import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { UserPlus } from "lucide-react";
-import { authApi } from "@/lib/api/auth";
-import { registerSchema } from "@/lib/schemas";
-import { readBaseUrl } from "@/lib/session-store";
+import { authApi, readBaseUrl, registerSchema } from "@/features/auth";
 import type { Role } from "@/lib/types";
 import { AuthShell } from "@/components/layout/auth-shell";
 import { Button, Card, Field, PageHeader, StatusBox } from "@/components/ui";
@@ -40,9 +38,9 @@ export default function RegisterPage() {
     resolver: zodResolver(registerSchema),
     defaultValues: {
       role: "client",
-      full_name: "Task Owner",
-      email: "client@example.com",
-      password: "password123",
+      full_name: "",
+      email: "",
+      password: "",
     },
   });
 
@@ -54,11 +52,6 @@ export default function RegisterPage() {
     const param = params.get("role");
     if (param === "client" || param === "tasker") {
       setValue("role", param);
-      setValue("full_name", param === "client" ? "Task Owner" : "Task Worker");
-      setValue(
-        "email",
-        param === "client" ? "client@example.com" : "worker@example.com",
-      );
     }
   }, [setValue]);
 
@@ -85,11 +78,6 @@ export default function RegisterPage() {
 
   function chooseRole(nextRole: Role) {
     setValue("role", nextRole);
-    setValue("full_name", nextRole === "client" ? "Task Owner" : "Task Worker");
-    setValue(
-      "email",
-      nextRole === "client" ? "client@example.com" : "worker@example.com",
-    );
   }
 
   return (
