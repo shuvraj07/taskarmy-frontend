@@ -5,8 +5,8 @@ import {
   splitTaskFiles,
   uploadFilesSequentially,
   type ApiTask,
-} from "@/lib/task-files";
-import type { ApiFile } from "@/lib/api/files";
+} from "./task-files";
+import type { ApiFile } from "../api/files";
 
 function makeFile(overrides: Partial<ApiFile> = {}): ApiFile {
   return {

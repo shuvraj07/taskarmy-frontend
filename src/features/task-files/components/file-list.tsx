@@ -1,6 +1,6 @@
 import { Download, Trash2 } from "lucide-react";
-import type { TaskFile } from "@/lib/task-files";
-import { extColor, fileIcon } from "@/components/task-files/file-icon";
+import type { TaskFile } from "../services/task-files";
+import { extColor, fileIcon } from "./file-icon";
 
 export function FileList({
   files,

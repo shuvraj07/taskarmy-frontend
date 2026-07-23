@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
 import { CheckCircle2, FolderOpen } from "lucide-react";
-import type { TaskFile } from "@/lib/task-files";
-import type { TaskerStep } from "@/hooks/use-tasker-step-machine";
-import { DropZone } from "@/components/task-files/drop-zone";
-import { LockedMessage } from "@/components/task-files/empty-states";
-import { FileList } from "@/components/task-files/file-list";
-import { Section } from "@/components/task-files/section";
-import { StepIndicator } from "@/components/task-files/step-indicator";
+import type { TaskFile } from "../services/task-files";
+import type { TaskerStep } from "../hooks/use-tasker-step-machine";
+import { DropZone } from "./drop-zone";
+import { LockedMessage } from "./empty-states";
+import { FileList } from "./file-list";
+import { Section } from "./section";
+import { StepIndicator } from "./step-indicator";
 
 export function TaskerFileExchange({
   step,

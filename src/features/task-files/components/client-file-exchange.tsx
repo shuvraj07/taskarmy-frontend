@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
-import type { TaskFile } from "@/lib/task-files";
-import { DropZone } from "@/components/task-files/drop-zone";
-import { EmptyWaiting } from "@/components/task-files/empty-states";
-import { FileList } from "@/components/task-files/file-list";
-import { Section } from "@/components/task-files/section";
+import type { TaskFile } from "../services/task-files";
+import { DropZone } from "./drop-zone";
+import { EmptyWaiting } from "./empty-states";
+import { FileList } from "./file-list";
+import { Section } from "./section";
 
 export function ClientFileExchange({
   briefFiles,

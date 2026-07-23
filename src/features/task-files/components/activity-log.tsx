@@ -1,5 +1,5 @@
-import type { TaskFile } from "@/lib/task-files";
-import { Section } from "@/components/task-files/section";
+import type { TaskFile } from "../services/task-files";
+import { Section } from "./section";
 
 export function ActivityLog({ files }: { files: TaskFile[] }) {
   return (

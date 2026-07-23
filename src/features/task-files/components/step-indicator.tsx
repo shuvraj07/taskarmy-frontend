@@ -1,4 +1,4 @@
-import type { TaskerStep } from "@/hooks/use-tasker-step-machine";
+import type { TaskerStep } from "../hooks/use-tasker-step-machine";
 
 const STEPS: Array<{ key: TaskerStep; label: string }> = [
   { key: "download", label: "Download Brief" },

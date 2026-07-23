@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   initialTaskerStepState as initial,
   taskerStepReducer,
-} from "@/hooks/use-tasker-step-machine";
+} from "./use-tasker-step-machine";
 
 describe("taskerStepReducer", () => {
   it("starts in the download step, unhydrated", () => {

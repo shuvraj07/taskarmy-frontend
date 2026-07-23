@@ -4,31 +4,27 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useTaskerStepMachine } from "@/hooks/use-tasker-step-machine";
 import {
+  ActivityLog,
+  ClientFileExchange,
+  derivePassiveFileExchangeError,
+  ErrorBanner,
+  FileExchangeHeader,
+  getTaskOwnerId,
+  splitTaskFiles,
+  StatusBanner,
+  SUBMITTED_STATUSES,
+  TaskerFileExchange,
+  TaskNotFound,
   useApproveTaskWork,
   useDeleteTaskFile,
   useRequestTaskRevision,
   useSubmitTaskWork,
   useTaskDetails,
   useTaskFiles,
+  useTaskerStepMachine,
   useUploadTaskFiles,
-} from "@/hooks/use-task-files";
-import {
-  derivePassiveFileExchangeError,
-  getTaskOwnerId,
-  splitTaskFiles,
-  SUBMITTED_STATUSES,
-} from "@/lib/task-files";
-import {
-  ActivityLog,
-  ClientFileExchange,
-  ErrorBanner,
-  FileExchangeHeader,
-  StatusBanner,
-  TaskerFileExchange,
-  TaskNotFound,
-} from "@/components/task-files";
+} from "@/features/task-files";
 import type { Role } from "@/lib/types";
 
 export default function TaskFilesPage() {
@@ -44,15 +40,21 @@ export default function TaskFilesPage() {
   const taskDetails = taskQuery.data ?? null;
   const taskOwnerId = taskDetails ? getTaskOwnerId(taskDetails) : null;
 
-  const filesQuery = useTaskFiles(
-    taskId,
-    activeSession,
-    taskDetails?.files ?? [],
-    taskQuery.isSuccess && Boolean(taskDetails),
+  const filesQuery = useTaskFiles(taskId, activeSession);
+  // The dedicated files endpoint is the source of truth; the task's own
+  // embedded `files` field (if any) is only a fallback for when that
+  // endpoint comes back empty. Computed here, reactively, so it's correct
+  // regardless of which of the two parallel queries finishes first.
+  const effectiveFiles = useMemo(
+    () =>
+      filesQuery.data && filesQuery.data.length > 0
+        ? filesQuery.data
+        : taskDetails?.files ?? [],
+    [filesQuery.data, taskDetails],
   );
   const { briefs: clientBriefFiles, deliverables: taskerSubmittedFiles } = useMemo(
-    () => splitTaskFiles(filesQuery.data ?? [], taskOwnerId),
-    [filesQuery.data, taskOwnerId],
+    () => splitTaskFiles(effectiveFiles, taskOwnerId),
+    [effectiveFiles, taskOwnerId],
   );
 
   const { uploading, uploadProgress, uploadFiles } = useUploadTaskFiles(
@@ -203,8 +205,7 @@ export default function TaskFilesPage() {
   const isLoadingPage =
     !isHydrated ||
     (Boolean(activeSession?.token) &&
-      (taskQuery.isLoading ||
-        (taskQuery.isSuccess && Boolean(taskDetails) && filesQuery.isLoading)));
+      (taskQuery.isLoading || filesQuery.isLoading));
   const reviewBusy = approveMutation.isPending || revisionMutation.isPending;
 
   return (

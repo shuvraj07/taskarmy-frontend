@@ -1,9 +1,10 @@
 import { useCallback, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { tasksApi } from "@/lib/api/tasks";
-import { filesApi, type ApiFile } from "@/lib/api/files";
-import { fetchTaskWithFallback, uploadFilesSequentially } from "@/lib/task-files";
+import { filesApi } from "../api/files";
+import { fetchTaskWithFallback, uploadFilesSequentially } from "../services/task-files";
 import { readBaseUrl } from "@/lib/session-store";
+import { useWalletStore } from "@/lib/payment/wallet-store";
 import type { Role, Session } from "@/lib/types";
 
 export function useTaskDetails(
@@ -19,12 +20,7 @@ export function useTaskDetails(
   });
 }
 
-export function useTaskFiles(
-  taskId: string,
-  session: Session | undefined,
-  fallbackFiles: ApiFile[],
-  enabled: boolean,
-) {
+export function useTaskFiles(taskId: string, session: Session | undefined) {
   return useQuery({
     queryKey: ["task-files", taskId, session?.token ?? null],
     queryFn: async () => {
@@ -36,10 +32,12 @@ export function useTaskFiles(
       if (!response.ok) {
         throw new Error(response.error ?? `Failed to load files (${response.status})`);
       }
-      const data = response.data ?? [];
-      return data.length > 0 ? data : fallbackFiles;
+      return response.data ?? [];
     },
-    enabled: Boolean(session?.token) && Boolean(taskId) && enabled,
+    // Runs in parallel with useTaskDetails — it only needs taskId/session,
+    // not the task's own payload, so there's no reason to wait on that
+    // query first (that used to add a full extra network round trip).
+    enabled: Boolean(session?.token) && Boolean(taskId),
   });
 }
 
@@ -90,9 +88,11 @@ export function useUploadTaskFiles(taskId: string, session: Session | undefined)
 export function useDeleteTaskFile(taskId: string, session: Session | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (fileId: string) => {
+    mutationFn: async (fileId: string) => {
       if (!session) throw new Error("Please log in to delete this file.");
-      return filesApi.remove(readBaseUrl(), session.token, fileId);
+      const response = await filesApi.remove(readBaseUrl(), session.token, fileId);
+      if (!response.ok) throw new Error(response.error ?? "Failed to delete file");
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["task-files", taskId] });
@@ -102,9 +102,11 @@ export function useDeleteTaskFile(taskId: string, session: Session | undefined) 
 
 export function useSubmitTaskWork(taskId: string, session: Session | undefined) {
   return useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!session) throw new Error("Please log in to submit work.");
-      return tasksApi.submitWork(readBaseUrl(), session.token, taskId);
+      const response = await tasksApi.submitWork(readBaseUrl(), session.token, taskId);
+      if (!response.ok) throw new Error(response.error ?? "Failed to submit work");
+      return response;
     },
   });
 }
@@ -112,11 +114,14 @@ export function useSubmitTaskWork(taskId: string, session: Session | undefined) 
 export function useApproveTaskWork(taskId: string, session: Session | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!session) throw new Error("Please log in to approve work.");
-      return tasksApi.approveWork(readBaseUrl(), session.token, Number(taskId));
+      const response = await tasksApi.approveWork(readBaseUrl(), session.token, Number(taskId));
+      if (!response.ok) throw new Error(response.error ?? "Failed to approve work");
+      return response;
     },
     onSuccess: () => {
+      useWalletStore.getState().releaseEscrow(Number(taskId));
       queryClient.invalidateQueries({ queryKey: ["task-details", taskId] });
       queryClient.invalidateQueries({ queryKey: ["task-files", taskId] });
     },
@@ -126,11 +131,11 @@ export function useApproveTaskWork(taskId: string, session: Session | undefined)
 export function useRequestTaskRevision(taskId: string, session: Session | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (note: string) => {
+    mutationFn: async (note: string) => {
       if (!session) throw new Error("Please log in to request a revision.");
-      return tasksApi.requestRevision(readBaseUrl(), session.token, Number(taskId), {
-        note,
-      });
+      const response = await tasksApi.requestRevision(readBaseUrl(), session.token, Number(taskId), { note });
+      if (!response.ok) throw new Error(response.error ?? "Failed to request revision");
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["task-details", taskId] });
