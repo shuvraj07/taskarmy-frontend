@@ -4,7 +4,7 @@ import { tasksApi } from "@/lib/api/tasks";
 import { filesApi } from "../api/files";
 import { fetchTaskWithFallback, uploadFilesSequentially } from "../services/task-files";
 import { readBaseUrl } from "@/lib/session-store";
-import { useWalletStore } from "@/lib/payment/wallet-store";
+import { escrowActions } from "@/features/payments";
 import type { Role, Session } from "@/lib/types";
 
 export function useTaskDetails(
@@ -121,7 +121,7 @@ export function useApproveTaskWork(taskId: string, session: Session | undefined)
       return response;
     },
     onSuccess: () => {
-      useWalletStore.getState().releaseEscrow(Number(taskId));
+      escrowActions.releaseEscrow(Number(taskId));
       queryClient.invalidateQueries({ queryKey: ["task-details", taskId] });
       queryClient.invalidateQueries({ queryKey: ["task-files", taskId] });
     },
