@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth, readBaseUrl, writeBaseUrl } from "@/features/auth";
-import { useWalletStore } from "@/lib/payment/wallet-store";
+import { useWalletStore } from "@/features/payments";
 import type { Session } from "@/lib/types";
 import { Button } from "@/components/ui";
 
