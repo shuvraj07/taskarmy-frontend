@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { tasksApi } from "@/lib/api/tasks";
+import { tasksApi } from "../api/tasks";
 import { readBaseUrl } from "@/features/auth";
 import type { Session, TaskCreatePayload, TaskUpdatePayload } from "@/lib/types";
 

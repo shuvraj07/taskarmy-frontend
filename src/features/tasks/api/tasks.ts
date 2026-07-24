@@ -1,5 +1,5 @@
 import type { Task, TaskCreatePayload, TaskUpdatePayload } from "@/lib/types";
-import { taskArraySchema, taskSchema } from "@/lib/schemas";
+import { taskArraySchema, taskSchema } from "../validation/schemas";
 import { request, validateResponse } from "@/lib/api/client";
 
 export const tasksApi = {

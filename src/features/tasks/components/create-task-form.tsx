@@ -3,7 +3,7 @@
 import { Check, ListChecks, Plus, Upload, X } from "lucide-react";
 import { FormEvent } from "react";
 import type { ChecklistItem, TaskCategory } from "@/components/bid/types";
-import { formatFileSize, getFileEmoji } from "@/lib/format";
+import { formatFileSize, getFileEmoji, toDateTimeLocalValue } from "@/lib/format";
 
 const categories: Array<{ label: TaskCategory; icon?: React.ComponentType }> = [
   { label: "All" },
@@ -11,6 +11,15 @@ const categories: Array<{ label: TaskCategory; icon?: React.ComponentType }> = [
   { label: "Content Writing" },
   { label: "Design" },
   { label: "Media & Social" },
+];
+
+const deadlinePresets: Array<{ label: string; ms: number }> = [
+  { label: "15 min", ms: 15 * 60 * 1000 },
+  { label: "1 hour", ms: 60 * 60 * 1000 },
+  { label: "3 hours", ms: 3 * 60 * 60 * 1000 },
+  { label: "1 day", ms: 24 * 60 * 60 * 1000 },
+  { label: "3 days", ms: 3 * 24 * 60 * 60 * 1000 },
+  { label: "1 week", ms: 7 * 24 * 60 * 60 * 1000 },
 ];
 
 export function CreateTaskForm({
@@ -134,8 +143,24 @@ export function CreateTaskForm({
           />
         </FormField>
         <FormField label="Deadline">
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {deadlinePresets.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className="rounded-md border border-[#ded7ee] bg-[#fbfaff] px-2.5 py-1 text-xs font-semibold text-[#4f22bd] transition hover:border-[#4f22bd] hover:bg-[#f0ecff]"
+                onClick={() =>
+                  onDeadlineChange(
+                    toDateTimeLocalValue(new Date(Date.now() + preset.ms)),
+                  )
+                }
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
           <input
-            className="mt-1 min-h-11 w-full rounded-md border border-[#ded7ee] bg-[#fbfaff] px-3 text-sm font-semibold text-[#21145f] outline-none focus:border-[#4f22bd]"
+            className="mt-2 min-h-11 w-full rounded-md border border-[#ded7ee] bg-[#fbfaff] px-3 text-sm font-semibold text-[#21145f] outline-none focus:border-[#4f22bd]"
             type="datetime-local"
             value={deadline}
             onChange={(e) => onDeadlineChange(e.target.value)}

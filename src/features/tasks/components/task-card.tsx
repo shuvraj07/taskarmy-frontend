@@ -1,7 +1,7 @@
 "use client";
 
 import type { Task } from "@/lib/types";
-import { formatDateTime, formatStatus } from "@/lib/format";
+import { formatDateTime, formatStatus, formatTimeRemaining } from "@/lib/format";
 
 export function TaskCard({
   task,
@@ -14,7 +14,9 @@ export function TaskCard({
 }) {
   const poster = getPoster(task);
   const postedTime = task.created_at ? formatDateTime(task.created_at) : "Recently posted";
-  const deadline = task.deadline ? formatDateTime(task.deadline) : "Flexible";
+  const deadline = task.deadline
+    ? formatTimeRemaining(task.deadline, Date.now())
+    : "Flexible";
 
   if (variant === "marketplace") {
     return (
@@ -67,7 +69,7 @@ export function TaskCard({
       <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-muted">
         <span className="rounded bg-paper px-2 py-1">ID {task.id}</span>
         {task.status && <span className="rounded bg-paper px-2 py-1">{task.status}</span>}
-        {task.deadline && <span className="rounded bg-paper px-2 py-1">Due {new Date(task.deadline).toLocaleDateString()}</span>}
+        {task.deadline && <span className="rounded bg-paper px-2 py-1">Due {formatTimeRemaining(task.deadline, Date.now())}</span>}
         {task.accepted_bid_id && <span className="rounded bg-mint-100 px-2 py-1 text-mint-700">Bid {task.accepted_bid_id} accepted</span>}
       </div>
       {action && <div className="mt-4">{action}</div>}
