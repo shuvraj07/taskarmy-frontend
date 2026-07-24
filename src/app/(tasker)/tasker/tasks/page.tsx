@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RefreshCw, Send } from "lucide-react";
-import { bidsApi } from "@/lib/api/bids";
+import { bidsApi } from "@/features/bids/api/bids";
 import { readBaseUrl, readSessions, removeSession } from "@/features/auth";
 import type { Session, Task } from "@/lib/types";
 import { AppShell } from "@/components/layout/navbar";

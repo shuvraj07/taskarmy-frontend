@@ -20,7 +20,6 @@ export type FeedTask = {
   category: Exclude<TaskCategory, "All">;
   location: string;
   posterName: string;
-  posterProfileHref: string;
   time: string;
   postedAgo: string;
   budget: number;

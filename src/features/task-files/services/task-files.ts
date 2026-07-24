@@ -1,5 +1,5 @@
 import { tasksApi } from "@/features/tasks/api/tasks";
-import { bidsApi } from "@/lib/api/bids";
+import { bidsApi } from "@/features/bids/api/bids";
 import type { ApiFile } from "../api/files";
 import type { Role } from "@/lib/types";
 

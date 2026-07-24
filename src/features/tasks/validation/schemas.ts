@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { bidArraySchema } from "@/lib/schemas";
+import { bidArraySchema } from "@/features/bids/validation/schemas";
 
 export const taskSchema = z.object({
   id: z.number(),

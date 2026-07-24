@@ -22,8 +22,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { bidsApi } from "@/lib/api/bids";
-import { request } from "@/lib/api/client";
+import { bidsApi } from "@/features/bids/api/bids";
 import {
   readActiveRole,
   readBaseUrl,

@@ -11,9 +11,9 @@ import {
   RotateCcw,
   Shield,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { FeedTask } from "@/components/bid/types";
+import type { FeedTask } from "./types";
+import { useWalletStore } from "@/lib/payment/wallet-store";
 
 const deliveryLabel: Record<Exclude<FeedTask["category"], "All">, string> = {
   "Data Entry": "Remote · File delivery",
@@ -93,6 +93,7 @@ export function TaskBidCard({
   onOpenChecklist,
   onComplete,
   onFiles,
+  onViewPoster,
   canPlaceBid,
   canViewBids,
   canComplete,
@@ -106,6 +107,7 @@ export function TaskBidCard({
   onOpenChecklist: () => void;
   onComplete: () => void;
   onFiles: () => void;
+  onViewPoster: () => void;
   canPlaceBid: boolean;
   canViewBids: boolean;
   canComplete: boolean;
@@ -117,6 +119,7 @@ export function TaskBidCard({
   const taskStatus = task.liveTask?.status as TaskStatus | undefined;
   const isSubmitted = taskStatus === "submitted";
   const isCompleted = taskStatus === "completed";
+  const escrowEntry = useWalletStore((state) => state.escrow[task.id]);
 
   function handlePlaceBidClick() {
     if (canPlaceBid) {
@@ -161,12 +164,13 @@ export function TaskBidCard({
                 aria-hidden="true"
               />
               Posted by{" "}
-              <Link
+              <button
+                type="button"
                 className="font-extrabold text-[#4f22bd] underline-offset-2 hover:underline"
-                href={task.posterProfileHref}
+                onClick={onViewPoster}
               >
                 {task.posterName}
-              </Link>
+              </button>
             </span>
             <span aria-hidden="true" className="text-[#ded7ee]">
               ·
@@ -227,7 +231,9 @@ export function TaskBidCard({
             aria-hidden="true"
           />
           <p className="text-sm font-extrabold text-emerald-700">
-            Task completed — payment pending
+            {escrowEntry?.status === "released"
+              ? `Task completed — Rs ${escrowEntry.amount} released to tasker`
+              : "Task completed — payment pending"}
           </p>
         </div>
       )}

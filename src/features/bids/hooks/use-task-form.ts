@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { getSampleChecklist } from "@/components/bid/helpers";
-import type { ChecklistItem, TaskCategory } from "@/components/bid/types";
+import { getSampleChecklist } from "../components/helpers";
+import type { ChecklistItem, TaskCategory } from "../components/types";
 
 function generateChecklistItemId() {
   return `checklist-${Date.now()}-${Math.random().toString(32).slice(2)}`;

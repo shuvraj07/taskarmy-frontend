@@ -1,5 +1,5 @@
 import type { Bid, BidCreatePayload, Task } from "@/lib/types";
-import { bidArraySchema, bidSchema } from "@/lib/schemas";
+import { bidArraySchema, bidSchema } from "../validation/schemas";
 import { taskSchema } from "@/features/tasks/validation/schemas";
 import { request, validateResponse } from "@/lib/api/client";
 

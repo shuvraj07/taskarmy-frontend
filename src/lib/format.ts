@@ -19,6 +19,27 @@ export function formatRelativeTime(iso: string | undefined, now: number): string
   return `${diffYr} year${diffYr === 1 ? "" : "s"} ago`;
 }
 
+export function formatTimeRemaining(iso: string, now: number): string {
+  const target = new Date(iso).getTime();
+  if (Number.isNaN(target)) return "no deadline";
+
+  const diffSec = Math.floor((target - now) / 1000);
+  if (diffSec <= 0) return "(overdue)";
+  if (diffSec < 60) return `in ${diffSec} sec`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `in ${diffMin} min`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `in ${diffHr} hour${diffHr === 1 ? "" : "s"}`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `in ${diffDay} day${diffDay === 1 ? "" : "s"}`;
+  const diffWk = Math.floor(diffDay / 7);
+  if (diffWk < 5) return `in ${diffWk} week${diffWk === 1 ? "" : "s"}`;
+  const diffMo = Math.floor(diffDay / 30);
+  if (diffMo < 12) return `in ${diffMo} month${diffMo === 1 ? "" : "s"}`;
+  const diffYr = Math.floor(diffDay / 365);
+  return `in ${diffYr} year${diffYr === 1 ? "" : "s"}`;
+}
+
 export function formatDateTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -33,6 +54,16 @@ export function formatDateTime(value: string): string {
 export function formatStatus(status?: string): string {
   if (!status) return "Open for bids";
   return status.replaceAll("_", " ");
+}
+
+export function toDateTimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 export function formatFileSize(bytes: number): string {

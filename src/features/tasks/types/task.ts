@@ -1,4 +1,4 @@
-import type { Bid } from "@/types/bid";
+import type { Bid } from "@/features/bids/types/bid";
 
 export type TaskPhase =
   | "open"
