@@ -5,13 +5,13 @@ export const dynamic = "force-dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Briefcase, HardHat, CheckCircle2 } from "lucide-react";
-import { authApi } from "@/lib/api/auth";
 import {
+  authApi,
   readBaseUrl,
   readSessions,
   removeSession,
   writeSession,
-} from "@/lib/session-store";
+} from "@/features/auth";
 import type { Role } from "@/lib/types";
 import { AuthShell } from "@/components/layout/auth-shell";
 import { Button, StatusBox } from "@/components/ui";

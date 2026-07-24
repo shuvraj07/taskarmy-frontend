@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isTokenExpired } from "@/lib/session-store";
+import { isTokenExpired } from "@/features/auth";
 
 export const config = {
   matcher: ["/client/:path*", "/tasker/:path*"],

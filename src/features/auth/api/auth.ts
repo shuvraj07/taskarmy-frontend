@@ -1,6 +1,6 @@
 import type { Credentials, LoginResponse, Role, UserRegistration } from "@/lib/types";
-import { loginResponseSchema } from "@/lib/schemas";
-import { mapFrontendRoleToBackend } from "@/lib/session-store";
+import { currentUserSchema, loginResponseSchema } from "../validation/schemas";
+import { mapFrontendRoleToBackend } from "../services/session";
 import { request, validateResponse } from "@/lib/api/client";
 
 export const authApi = {
@@ -37,5 +37,15 @@ export const authApi = {
       token,
       body: { role: mapFrontendRoleToBackend(body.role) },
     });
+  },
+
+  me: async (baseUrl: string, token: string) => {
+    const response = await request<{ role?: string }>(
+      baseUrl,
+      "/auth/me",
+      "GET",
+      { token },
+    );
+    return validateResponse(response, currentUserSchema);
   },
 };

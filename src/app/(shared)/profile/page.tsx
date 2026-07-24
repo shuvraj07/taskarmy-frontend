@@ -9,7 +9,7 @@ import {
   TaskerProfileCard,
   buildTaskerProfile,
 } from "@/components/account/tasker-profile-card";
-import { readSessions } from "@/lib/session-store";
+import { readSessions } from "@/features/auth";
 import type { Role, Session } from "@/lib/types";
 
 export default function ProfilePage() {

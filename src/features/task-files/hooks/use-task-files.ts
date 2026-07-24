@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { tasksApi } from "@/lib/api/tasks";
 import { filesApi } from "../api/files";
 import { fetchTaskWithFallback, uploadFilesSequentially } from "../services/task-files";
-import { readBaseUrl } from "@/lib/session-store";
+import { readBaseUrl } from "@/features/auth";
 import { escrowActions } from "@/features/payments";
 import type { Role, Session } from "@/lib/types";
 

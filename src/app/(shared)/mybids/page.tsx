@@ -18,17 +18,19 @@ import {
   RotateCcw,
   Shield,
   Upload,
+  Wallet,
   X,
   Zap,
 } from "lucide-react";
 import { bidsApi } from "@/lib/api/bids";
+import { request } from "@/lib/api/client";
 import {
   readActiveRole,
   readBaseUrl,
   readSessions,
   removeSession,
-} from "@/lib/session-store";
-import type { Bid, Role, Session } from "@/lib/types";
+} from "@/features/auth";
+import type { Bid, Session } from "@/lib/types";
 
 const PROFILE_PHOTO_URL = "https://randomuser.me/api/portraits/men/32.jpg";
 
@@ -85,20 +87,19 @@ export default function MyBidsPage() {
         const enriched = await Promise.all(
           next.map(async (bid) => {
             if (bid.status === "accepted" && bid.task_id) {
-              try {
-                const taskRes = await fetch(
-                  `${readBaseUrl()}/tasks/${bid.task_id}`,
-                  { headers: { Authorization: `Bearer ${sess.token}` } },
-                );
-                if (taskRes.ok) {
-                  const task = await taskRes.json();
-                  return {
-                    ...bid,
-                    task_status: task.status as TaskStatus,
-                    revision_note: task.revision_note ?? null,
-                  };
-                }
-              } catch {}
+              const taskRes = await request<{ status?: string; revision_note?: string }>(
+                readBaseUrl(),
+                `/tasks/${bid.task_id}`,
+                "GET",
+                { token: sess.token },
+              );
+              if (taskRes.ok && taskRes.data) {
+                return {
+                  ...bid,
+                  task_status: taskRes.data.status as TaskStatus,
+                  revision_note: taskRes.data.revision_note,
+                };
+              }
             }
             return bid;
           }),
@@ -161,7 +162,7 @@ export default function MyBidsPage() {
   }, [session, fetchBids]);
 
   function handleLogout() {
-    removeSession("tasker" as Role);
+    removeSession("tasker");
     router.push("/login");
   }
 
@@ -347,6 +348,11 @@ export default function MyBidsPage() {
           badge={accepted.length}
           onClick={() => {}}
         />
+        <NavTab
+          icon={Wallet}
+          label="Wallet"
+          onClick={() => router.push("/wallet")}
+        />
         <NavTab icon={MessageCircle} label="Chat" onClick={() => {}} />
         <NavTab icon={LogOut} label="Logout" onClick={handleLogout} />
       </nav>
@@ -451,7 +457,8 @@ function BidCard({
   const isRevision = taskStatus === "revision_requested";
   const isCompleted = taskStatus === "completed";
   const isDisputed = taskStatus === "disputed";
-  const isInProgress = taskStatus === "in_progress" || taskStatus === undefined;
+  const isInProgress = taskStatus === "in_progress";
+  const isStatusUnknown = taskStatus === undefined;
 
   return (
     <div
@@ -536,7 +543,7 @@ function BidCard({
       {/* CTA blocks */}
       {status === "accepted" && (
         <>
-          {isInProgress && (
+          {(isInProgress || isStatusUnknown) && (
             <div className="mt-3 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2.5">
               <p className="text-sm font-extrabold text-emerald-700">
                 🚀 Your offer was accepted!

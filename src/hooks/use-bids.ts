@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bidsApi } from "@/lib/api/bids";
-import { readBaseUrl } from "@/lib/session-store";
+import { readBaseUrl } from "@/features/auth";
 import type { BidCreatePayload, Session } from "@/lib/types";
 
 export function useMyBids(session: Session | undefined) {

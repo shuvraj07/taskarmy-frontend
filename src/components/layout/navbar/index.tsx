@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Banknote,
   BriefcaseBusiness,
   ClipboardList,
   Gavel,
   LogIn,
   UserPlus,
   User,
+  Wallet,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/use-auth";
-import { readBaseUrl, writeBaseUrl } from "@/lib/session-store";
+import { useAuth, readBaseUrl, writeBaseUrl } from "@/features/auth";
+import { useWalletStore } from "@/lib/payment/wallet-store";
 import type { Session } from "@/lib/types";
 import { Button } from "@/components/ui";
 
@@ -28,11 +30,14 @@ const links = [
   { href: "/tasker/profile", label: "Tasker Profile", icon: User },
   { href: "/bids", label: "Bids", icon: Gavel },
   { href: "/profile", label: "Profile", icon: User },
+  { href: "/wallet", label: "Wallet", icon: Wallet },
+  { href: "/payouts", label: "Payouts", icon: Banknote },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { sessions, signOut } = useAuth();
+  const balances = useWalletStore((state) => state.balances);
   const [baseUrl, setBaseUrl] = useState("http://127.0.0.1:8000");
 
   useEffect(() => {
@@ -83,14 +88,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <section className="border-b border-line bg-brand-50/70">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <label className="flex flex-col gap-1 text-xs font-semibold text-muted sm:flex-row sm:items-center">
-            API
-            <input
-              className="min-h-9 w-full rounded-md border border-line bg-white px-3 text-sm font-medium text-ink sm:w-80"
-              value={baseUrl}
-              onChange={(event) => updateBaseUrl(event.target.value)}
-            />
-          </label>
+          {process.env.NODE_ENV !== "production" && (
+            <label className="flex flex-col gap-1 text-xs font-semibold text-muted sm:flex-row sm:items-center">
+              API
+              <input
+                className="min-h-9 w-full rounded-md border border-line bg-white px-3 text-sm font-medium text-ink sm:w-80"
+                value={baseUrl}
+                onChange={(event) => updateBaseUrl(event.target.value)}
+              />
+            </label>
+          )}
           <div className="flex flex-wrap gap-2">
             <SessionPill
               label="Client"
@@ -102,6 +109,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               session={sessions.tasker}
               onSignOut={() => signOut("tasker")}
             />
+            <WalletPill label="Client wallet" amount={balances.client} />
+            <WalletPill label="Tasker wallet" amount={balances.tasker} />
           </div>
         </div>
       </section>
@@ -138,5 +147,17 @@ function SessionPill({
         </Button>
       )}
     </div>
+  );
+}
+
+function WalletPill({ label, amount }: { label: string; amount: number }) {
+  return (
+    <Link
+      href="/wallet"
+      className="inline-flex min-h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:bg-paper"
+    >
+      <span className="text-muted">{label}:</span>
+      <span className="text-brand-700">Rs {amount.toFixed(2)}</span>
+    </Link>
   );
 }
