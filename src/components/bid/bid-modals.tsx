@@ -3,6 +3,7 @@
 import { Send, Shield } from "lucide-react";
 import { FormEvent } from "react";
 import type { FeedTask } from "@/components/bid/types";
+import type { Bid } from "@/lib/types";
 
 export function PlaceBidModal({
   selectedTask,
@@ -82,7 +83,7 @@ export function ViewBidsModal({
   onClose,
 }: {
   reviewTask: FeedTask | null;
-  reviewBids: any[];
+  reviewBids: Bid[];
   selectedBidId: number | null;
   busy: string | null;
   onSelectBid: (id: number) => void;
