@@ -4,11 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/navbar";
 import { Button, Card } from "@/components/ui";
-import { SessionCard } from "@/components/account/session-card";
-import {
-  TaskerProfileCard,
-  buildTaskerProfile,
-} from "@/components/account/tasker-profile-card";
+import { SessionCard, TaskerProfileCard, buildTaskerProfile } from "@/features/users";
 import { readSessions } from "@/lib/session-store";
 import type { Role, Session } from "@/lib/types";
 
