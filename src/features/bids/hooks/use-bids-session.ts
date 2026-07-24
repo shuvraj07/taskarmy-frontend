@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { readActiveRole, readSessions } from "@/lib/session-store";
+import { readActiveRole, readSessions } from "@/features/auth";
 import type { Role, Session } from "@/lib/types";
 
 export function useBidsSession() {

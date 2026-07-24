@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { readActiveRole, removeSession } from "@/lib/session-store";
+import { readActiveRole, removeSession } from "@/features/auth";
 import type { FeedTask } from "../components";
 import { useBidsSession } from "./use-bids-session";
 import { useBidsFeed } from "./use-bids-feed";

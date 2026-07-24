@@ -22,7 +22,7 @@ export type EscrowEntry = {
   payoutConfirmed: boolean;
 };
 
-type WalletState = {
+export type WalletState = {
   balances: Record<Role, number>;
   escrow: Record<number, EscrowEntry>;
   fundEscrow: (taskId: number, amount: number, payee?: EscrowPayee) => void;

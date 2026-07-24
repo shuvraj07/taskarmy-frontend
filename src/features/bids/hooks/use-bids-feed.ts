@@ -11,10 +11,10 @@ import {
   type ChecklistItem,
 } from "../components";
 import { formatRelativeTime, formatTimeRemaining } from "@/lib/format";
-import { tasksApi } from "@/lib/api/tasks";
+import { tasksApi } from "@/features/tasks/api/tasks";
 import { bidsApi } from "../api/bids";
 import { request } from "@/lib/api/client";
-import { readBaseUrl, removeSession } from "@/lib/session-store";
+import { readBaseUrl, removeSession } from "@/features/auth";
 import type { Bid, Role, Session, Task } from "@/lib/types";
 
 export function useBidsFeed(args: {

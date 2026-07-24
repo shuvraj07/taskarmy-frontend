@@ -2,9 +2,9 @@
 
 import { Dispatch, FormEvent, SetStateAction } from "react";
 import { bidsApi } from "../api/bids";
-import { tasksApi } from "@/lib/api/tasks";
-import { useWalletStore } from "@/lib/payment/wallet-store";
-import { readBaseUrl } from "@/lib/session-store";
+import { tasksApi } from "@/features/tasks/api/tasks";
+import { escrowActions } from "@/features/payments";
+import { readBaseUrl } from "@/features/auth";
 import type { Bid, Session, Task, TaskPhase } from "@/lib/types";
 import type { ChecklistItem, FeedTask, TaskCategory } from "../components";
 import type { useTaskForm } from "./use-task-form";
@@ -205,7 +205,7 @@ export function useBidsActions(args: {
         const acceptedBid = getTaskBids(reviewTask).find(
           (bid) => bid.id === selectedBidId,
         );
-        useWalletStore.getState().fundEscrow(
+        escrowActions.fundEscrow(
           reviewTask.id,
           acceptedBid?.amount ?? reviewTask.budget,
           { name: acceptedBid?.bidder_name, email: acceptedBid?.bidder_email },
@@ -236,10 +236,10 @@ export function useBidsActions(args: {
         : (response.error ?? "Could not update task phase."),
     );
     if (response.ok && phase === "completed") {
-      useWalletStore.getState().releaseEscrow(task.id);
+      escrowActions.releaseEscrow(task.id);
     }
     if (response.ok && phase === "cancelled") {
-      useWalletStore.getState().refundEscrow(task.id);
+      escrowActions.refundEscrow(task.id);
     }
   }
 

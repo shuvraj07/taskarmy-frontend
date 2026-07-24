@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { TaskBidCard } from "./task-bid-card";
 import type { FeedTask, TaskCategory } from "./types";
-import { TaskFilters, CreateTaskForm } from "@/components/task";
+import { TaskFilters, CreateTaskForm } from "@/features/tasks";
 import { useTaskForm } from "../hooks/use-task-form";
 import type { Bid } from "@/lib/types";
 

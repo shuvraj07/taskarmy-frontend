@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { FeedTask } from "./types";
-import { useWalletStore } from "@/lib/payment/wallet-store";
+import { useWalletStore, type WalletState } from "@/features/payments";
 
 const deliveryLabel: Record<Exclude<FeedTask["category"], "All">, string> = {
   "Data Entry": "Remote · File delivery",
@@ -119,7 +119,7 @@ export function TaskBidCard({
   const taskStatus = task.liveTask?.status as TaskStatus | undefined;
   const isSubmitted = taskStatus === "submitted";
   const isCompleted = taskStatus === "completed";
-  const escrowEntry = useWalletStore((state) => state.escrow[task.id]);
+  const escrowEntry = useWalletStore((state: WalletState) => state.escrow[task.id]);
 
   function handlePlaceBidClick() {
     if (canPlaceBid) {
