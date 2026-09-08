@@ -1,282 +1,254 @@
-# TaskArmy Frontend Architecture
+# Taskzity Frontend Architecture
 
-This frontend is a **Next.js 14** app using the **App Router**, written in **TypeScript** with **Tailwind CSS**.
+This is the frontend for **Taskzity** (a.k.a. TaskArmy), a task marketplace where one
+role posts work and the other bids on and completes it. It is a **Next.js 14** app
+using the **App Router**, written in **TypeScript**, styled with **Tailwind CSS**.
+It talks to a separate backend over HTTP — there is no server logic or database in
+this repo.
 
-It is built as a small dashboard for two user roles:
+Two roles:
 
-- `tasker`: the person posting jobs
-- `taskarmy`: the person browsing jobs and placing bids
+- `client` — posts tasks (backend calls this role `tasker`)
+- `tasker` — browses tasks, bids, and delivers work (backend calls this role `taskarmy`)
 
-The app separates these workflows into dedicated routes and shared UI components.
+The frontend renamed the roles for clarity. The translation between frontend and
+backend role names happens in exactly one place — see
+[Roles: frontend vs backend](#roles-frontend-vs-backend) below. Don't assume `tasker`
+means the same thing in a network payload as it does in a frontend type.
 
 ## Folder structure
 
 ```txt
-app/
-  globals.css                    Global Tailwind setup and base styles
-  layout.tsx                     Root HTML shell and metadata
-  page.tsx                       Homepage and role navigation
-  bids/page.tsx                  Bid-related overview page
-  login/page.tsx                 Login screen for Tasker and TaskArmy
-  profile/page.tsx               Shared profile page
-  register/page.tsx              Registration screen for both roles
-  sample/page.tsx                Sample/demo page
-  taskarmy/dashboard/page.tsx    TaskArmy dashboard
-  taskarmy/profile/page.tsx      TaskArmy profile page
-  taskarmy/tasks/page.tsx        Marketplace and bid placement for TaskArmy users
-  tasker/dashboard/page.tsx      Tasker dashboard
-  tasker/tasks/page.tsx          Task creation, management, and bid handling for Taskers
-components/
-  app-shell.tsx                  Page layout wrapper and shared navigation
-  query-provider.tsx             Client-side query/provider wrapper
-  task-card.tsx                  Reusable task listing card
-  ui.tsx                         Shared buttons, fields, cards, status boxes
-hooks/
-  useBids.ts                     Reusable bid data hook
-  useTasks.ts                    Reusable task data hook
-lib/
-  api.ts                         API client and typed backend request helpers
-  schemas.ts                     Shared validation/data schemas
-  session-store.ts               localStorage helpers for auth sessions and API URL
-  types.ts                       TypeScript types for roles, sessions, tasks, bids, and API envelopes
-docs/
-  architecture.md                Project architecture documentation
-middleware.ts                    Next.js middleware for request/route handling
-next.config.mjs                  Next.js configuration
-tailwind.config.ts               Tailwind CSS configuration
-tsconfig.json                    TypeScript configuration
+src/
+  app/
+    layout.tsx                      Root HTML shell, global metadata
+    page.tsx                        Home page
+    error.tsx, global-error.tsx     App Router error boundaries
+    globals.css                     Tailwind base styles
+    (auth)/
+      login/page.tsx                Google OAuth sign-in
+      register/page.tsx             Registration
+      onboarding/role/page.tsx      Role picker for brand-new Google sign-ins
+    (client)/
+      client/dashboard/page.tsx     Client dashboard
+      client/tasks/page.tsx         Client's posted tasks
+    (tasker)/
+      tasker/dashboard/page.tsx     Tasker dashboard
+      tasker/tasks/page.tsx         Marketplace browsing + bidding
+      tasker/profile/[id]/page.tsx  Public tasker profile
+    (shared)/                       Routes used by both roles
+      profile/page.tsx
+      bids/page.tsx                 Bids overview / feed
+      mybids/page.tsx                Bids the current user placed
+      task/[taskId]/files/page.tsx  File exchange for one task
+      (payment)/
+        wallet/page.tsx             Simulated wallet balance + escrow
+        payouts/page.tsx            Simulated payout confirmation
+  components/
+    ui/                  Design-system primitives (Button, Field, Card, ...)
+    layout/              Navbar (AppShell) and AuthShell
+    providers/           QueryProvider (React Query)
+    task/                Task card, filters, create-task form
+    bid/                 Bid feed card, modals, sidebar, bottom nav
+    task-files/           File exchange feature (drop zone, activity log, etc.)
+    account/             Session card, tasker profile card
+    shared/skeletons/    Loading skeletons
+  hooks/                 React Query hooks + small client-side state machines
+  lib/
+    api/                 Typed backend client (one file per resource)
+    payment/             wallet-store.ts (simulated escrow, Zustand)
+    types.ts             Re-exports of domain types + ApiEnvelope
+    schemas.ts           Zod schemas for validating API responses
+    session-store.ts      localStorage/cookie session persistence + role mapping
+    task-files.ts         Task/file fetch-with-fallback helpers
+    format.ts, utils.ts   Formatting and small utilities
+  types/                 Domain types: user.ts, task.ts, bid.ts
+  middleware.ts          Route-guard middleware for /client/* and /tasker/*
 ```
 
-## Core app behavior
+(`app/(groupName)/...` folder names in parentheses are route groups — they organize
+files but don't appear in the URL.)
 
-- `app/layout.tsx` defines the root HTML structure and global metadata.
-- `app/globals.css` contains global styling and Tailwind configuration.
-- `app/page.tsx` is the home page with quick access to login, register, and the TaskArmy task browser.
-- Nested folders like `app/taskarmy/tasks` become routes like `/taskarmy/tasks`.
+## Roles: frontend vs backend
 
-This makes the app easy to navigate and keeps each role's workflow isolated.
+The backend's role names (`tasker`, `taskarmy`) and the frontend's role names
+(`client`, `tasker`) collide on the word "tasker" but mean different things. All
+translation lives in [`lib/session-store.ts`](../src/lib/session-store.ts):
+
+```ts
+mapBackendRoleToFrontend("tasker")   -> "client"
+mapBackendRoleToFrontend("taskarmy") -> "tasker"
+mapFrontendRoleToBackend("client")   -> "tasker"
+mapFrontendRoleToBackend("tasker")   -> "taskarmy"
+```
+
+`lib/schemas.ts` has a separate `backendRoleSchema` (`"tasker" | "taskarmy"`) used only
+for validating data straight off the wire, before it passes through that mapping.
+
+## Auth flow
+
+Login is Google OAuth only (see [`app/(auth)/login/page.tsx`](../src/app/(auth)/login/page.tsx)):
+
+1. User clicks "Continue with Google" (`useGoogleLogin`), gets a Google access token.
+2. Frontend fetches the user's email/name/picture from Google's userinfo endpoint.
+3. Frontend exchanges the Google token for a backend JWT via
+   `authApi.googleLogin` → `POST /auth/google/token`.
+4. Frontend calls `authApi.me` → `GET /auth/me` to find out if this user already has
+   a role (the token-exchange response never includes one).
+   - Role known → session saved, redirect to `/bids`.
+   - No role yet (new user) → temp session saved, redirect to `/onboarding/role`.
+5. [`lib/session-store.ts`](../src/lib/session-store.ts) persists the session to
+   `localStorage` (`taskzity.sessions`) **and** mirrors the token into a cookie
+   (`client_token` / `tasker_token`), because...
+6. [`middleware.ts`](../src/middleware.ts) checks that cookie on every request to
+   `/client/*` or `/tasker/*` and redirects to `/login` if it's missing or expired.
+7. [`hooks/use-auth.ts`](../src/hooks/use-auth.ts) is a Zustand store wrapping
+   `session-store.ts` so every component calling `useAuth()` re-renders on session
+   changes (login, logout, another tab) from one shared subscription.
+
+JWTs are decoded client-side (payload only, no signature check) just to read role and
+expiry — see `isTokenExpired` / `readCurrentUserId` in `session-store.ts`.
 
 ## API layer
 
-`lib/api.ts` contains the backend client and a shared fetch wrapper.
+`lib/api/` has one file per backend resource (`auth.ts`, `tasks.ts`, `bids.ts`,
+`files.ts`), all built on [`lib/api/client.ts`](../src/lib/api/client.ts):
 
-It provides typed methods such as:
+- `request<T>()` — JSON fetch wrapper, always returns a normalized
+  `ApiEnvelope<T>` (`{ ok, status, data, error }`) so pages never juggle raw
+  fetch/try-catch logic.
+- `requestFormData<T>()` — same envelope, for file uploads.
+- `validateResponse()` — optionally parses a successful envelope's `data` against a
+  Zod schema from `lib/schemas.ts`, turning a bad payload shape into a normal `ok:
+  false` error instead of a runtime crash downstream.
 
-- `login` and `register`
-- `createTask`, `myTasks`, `updateTask`, `deleteTask`, `acceptBid`, `rejectBid`
-- `browseTasks`, `placeBid`, `myBids`
-- `root`, `health`
+`lib/api/files.ts` also smooths over a backend quirk: a 404 from
+`GET /files/task/:id` (no files yet) is treated as a successful empty list, not an
+error.
 
-All requests return a normalized `ApiEnvelope<T>` shape, so pages can handle success/failure uniformly.
+## Data fetching hooks
 
-## Session storage
+`hooks/use-tasks.ts`, `use-bids.ts`, and `use-task-files.ts` wrap the API layer in
+TanStack Query (`useQuery`/`useMutation`), so pages get `data` / `isLoading` /
+`isError` without touching fetch logic directly:
 
-`lib/session-store.ts` saves user sessions in browser `localStorage`.
+- `use-tasks.ts` — `useMyTasks`, `useBrowseTasks` (polls every 15s),
+  `useCreateTask`, `useUpdateTask`, `useDeleteTask`.
+- `use-bids.ts` — `useMyBids`, `usePlaceBid`, `useReviewBid` (accept/reject).
+- `use-task-files.ts` — task detail + file list fetching, upload (with simulated
+  progress), delete, submit/approve/request-revision. `useApproveTaskWork` also
+  releases escrow in the wallet store on success.
 
-It keeps:
+Mutations invalidate the relevant React Query keys (`["tasks"]`, `["bids"]`,
+`["task-files", taskId]`, etc.) on success rather than manually patching cache.
 
-- separate tokens for `tasker` and `taskarmy`
-- the API base URL
+`hooks/use-tasker-step-machine.ts` is a separate `useReducer`-based state machine
+(`download → upload → submitted`) that tracks a tasker's progress through delivering
+a task. It's deliberately driven only by explicit actions and one-time server
+hydration — never inferred from "files exist" — so the UI can't silently jump ahead
+when a task is reopened with leftover files. This is one of the few pieces with unit
+tests ([`use-tasker-step-machine.test.ts`](../src/hooks/use-tasker-step-machine.test.ts)).
 
-This lets the app switch roles without losing the other session and keeps auth state available on page reload.
+## Client-side state (Zustand)
+
+Two independent stores:
+
+- **Auth** (`hooks/use-auth.ts`) — reactive cache over `session-store.ts`, described
+  above.
+- **Wallet** ([`lib/payment/wallet-store.ts`](../src/lib/payment/wallet-store.ts)) —
+  a *simulated* escrow system, no real money and no backend call. Each role starts
+  with a dummy balance; accepting a bid holds the task budget in escrow, approving
+  work releases it to the tasker's balance, cancelling refunds the client.
+  `payoutConfirmed` tracks the separate manual step of actually sending a real
+  transfer once funds are released. Persisted to `localStorage` and re-synced across
+  browser tabs via the `storage` event (the Zustand `persist` middleware alone only
+  writes, it doesn't push updates to other open tabs).
 
 ## UI components
 
-`components/ui.tsx` defines shared UI primitives:
+`components/ui/` holds shared primitives: `Button`, `Field`, `TextArea`,
+`SelectField`, `PageHeader`, `Card`, `StatusBox` — re-exported from
+[`components/ui/index.ts`](../src/components/ui/index.ts).
 
-- `Button`
-- `Field`
-- `TextArea`
-- `SelectField`
-- `PageHeader`
-- `Card`
-- `StatusBox`
+`components/layout/navbar/index.tsx` (exported as `AppShell`) is the authenticated
+app frame: top nav, an editable API base-URL field, per-role session pills with
+logout, and wallet balance pills. `components/layout/auth-shell.tsx` is the simpler
+centered layout used by login/register/onboarding.
 
-These keep appearance consistent across pages and reduce duplicate markup.
+Feature folders build on the primitives:
 
-`components/task-card.tsx` is used to render task listings in feeds and marketplaces.
+- `components/task/` — `TaskCard`, `TaskFilters`, `CreateTaskForm`.
+- `components/bid/` — `BidsHeader`, `BidsSidebar`, `TaskBidCard`, `BottomNav`, and
+  the bid modals (`PlaceBidModal`, `ViewBidsModal`, `ChecklistModal`,
+  `PosterProfileModal`).
+- `components/task-files/` — the file-exchange UI for a single task: drop zone,
+  file list, activity log, step indicator, role-specific exchange views
+  (`client-file-exchange.tsx`, `tasker-file-exchange.tsx`), banners and empty states.
+- `components/account/` — `SessionCard`, `TaskerProfileCard`.
+- `components/shared/skeletons/` — loading skeletons (e.g. `TaskCardSkeleton`).
 
-`components/query-provider.tsx` provides the client-side provider wrapper used by the app.
-
-`hooks/` stores reusable React hooks that keep page components smaller.
-
-## Component-by-component architecture
-
-### `components/app-shell.tsx`
-
-**Main responsibility:** Provides the shared application frame for authenticated/dashboard pages.
-
-It includes:
-
-- top navigation links
-- active route highlighting with `usePathname`
-- API base URL editor
-- session status pills for `tasker` and `taskarmy`
-- logout actions for each role
-
-It depends on:
-
-- `next/link` for navigation
-- `next/navigation` for the current route
-- `lucide-react` for navigation icons
-- `lib/session-store.ts` for reading/writing browser session data
-- `components/ui.tsx` for the logout button
-
-Improvement ideas:
-
-- Move the `links` array into a separate config file, such as `lib/navigation.ts`.
-- Split `SessionPill` into its own file if it is reused elsewhere.
-- Hide role-specific links when the matching role is signed out.
-- Move API URL editing into a settings page when the app becomes production-focused.
-- Add route guards so signed-out users cannot access dashboard pages directly.
-
-### `AuthShell` in `components/app-shell.tsx`
-
-**Main responsibility:** Provides a simpler layout for authentication pages.
-
-It includes:
-
-- TaskArmy brand header
-- login/register navigation
-- centered content wrapper for auth forms
-
-Improvement ideas:
-
-- Keep this shell separate from dashboard-only behavior.
-- Move it to `components/auth-shell.tsx` if the file grows.
-- Add responsive form width rules here so login/register pages stay visually consistent.
-
-### `components/query-provider.tsx`
-
-**Main responsibility:** Creates and provides the React Query client.
-
-It wraps the app with:
-
-- `QueryClientProvider`
-- a stable `QueryClient` instance created with `useState`
-
-Improvement ideas:
-
-- Add default query options, such as retry count, stale time, and refetch behavior.
-- Add React Query Devtools in development.
-- Keep API fetching logic inside hooks so pages do not call React Query directly everywhere.
-
-### `components/task-card.tsx`
-
-**Main responsibility:** Renders task information in reusable card layouts.
-
-It supports:
-
-- `compact` variant for dashboard/task management views
-- `marketplace` variant for TaskArmy browsing
-- optional `action` content for buttons or forms
-- poster name/email fallback handling
-- task budget, status, deadline, and accepted bid display
-
-It depends on:
-
-- `Task` type from `lib/types.ts`
-- internal helpers for poster display, date formatting, and status formatting
-
-Improvement ideas:
-
-- Move date/status formatting helpers into `lib/formatters.ts`.
-- Add stronger empty-state handling for missing budgets or invalid dates.
-- Make status labels consistent with backend status values.
-- Split marketplace and compact variants if this file becomes harder to maintain.
-- Add tests for poster fallback logic because it handles many possible backend shapes.
-
-### `components/ui.tsx`
-
-**Main responsibility:** Provides shared UI primitives used across pages.
-
-It currently contains:
-
-- `Button`
-- `Field`
-- `TextArea`
-- `SelectField`
-- `PageHeader`
-- `Card`
-- `StatusBox`
-
-Improvement ideas:
-
-- Split larger primitives into separate files as the design system grows.
-- Add `error`, `helperText`, and `disabled` states to form fields.
-- Add `size` props to `Button` instead of passing size through `className`.
-- Make `Card` accept semantic variants only when repeated page patterns appear.
-- Keep these components simple and avoid putting page-specific logic inside them.
-
-### `hooks/useTasks.ts`
-
-**Main responsibility:** Centralizes task fetching and task mutations.
-
-Expected usage:
-
-- Tasker dashboard/task pages can call it for owned tasks.
-- TaskArmy task pages can call it for marketplace browsing.
-- Pages stay smaller because task API state lives in the hook.
-
-Improvement ideas:
-
-- Keep query keys consistent and exported.
-- Invalidate related task queries after create, update, delete, or bid actions.
-- Return clear loading, error, and empty states for page components.
-
-### `hooks/useBids.ts`
-
-**Main responsibility:** Centralizes bid fetching and bid mutations.
-
-Expected usage:
-
-- Bids overview can show the current user's bids.
-- Tasker pages can accept or reject bids.
-- TaskArmy pages can place bids on marketplace tasks.
-
-Improvement ideas:
-
-- Keep bid query keys in one place.
-- Invalidate both bid and task queries after bid status changes.
-- Add optimistic updates only after the basic server flow is reliable.
+`components/providers/query-provider.tsx` creates the single `QueryClient` instance
+(via `useState`) and wraps the app in `QueryClientProvider`.
 
 ## Design decisions
 
-- **Next.js App Router** gives route-based folders and simple nested pages.
-- **TypeScript** ensures API payloads, state, and page props are typed.
-- **Tailwind CSS** is used for fast, consistent dashboard styling.
-- **Local state + localStorage** is enough for session handling in this app size.
-- **Middleware** gives the app a single place for request-level route behavior.
+- **Next.js App Router** with route groups keeps each role's pages physically
+  separate while sharing layout and shared pages cleanly.
+- **TypeScript + Zod** types and validates API payloads so a backend shape change
+  surfaces as a typed error instead of a silent `undefined`.
+- **TanStack Query** owns all server state; Zustand is reserved for state that's
+  genuinely local to the browser (session cache, simulated wallet).
+- **localStorage + cookies** are enough for session handling at this app's size —
+  localStorage for the rich session object, a thin cookie mirror so `middleware.ts`
+  can guard routes server-side.
+- **Middleware** is the single place for request-level route protection, scoped to
+  `/client/*` and `/tasker/*` via the `matcher` config.
 
 ## Environment configuration
 
-The app defaults to `https://taskarmy.onrender.com` for the backend.
-
-To use another backend URL, set:
+The backend base URL defaults to `http://127.0.0.1:8000`. Override it by setting:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=https://your-api.example.com
 ```
 
-If not set, the app will still use the default local base URL.
+It can also be changed live from the navbar's "API" field, which persists per-browser
+to `localStorage` (this overrides the env default at runtime).
+
+Google sign-in requires:
+
+```bash
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=<google-oauth-client-id>
+```
 
 ## Routes overview
 
-- `/` - Home page
-- `/login` - Login
-- `/register` - Register
-- `/profile` - Shared profile page
-- `/bids` - Bids overview
-- `/sample` - Sample/demo page
-- `/taskarmy/dashboard` - TaskArmy dashboard
-- `/taskarmy/profile` - TaskArmy profile page
-- `/taskarmy/tasks` - TaskArmy marketplace and bid placement
-- `/tasker/dashboard` - Tasker dashboard
-- `/tasker/tasks` - Tasker task management
+- `/` — Home page
+- `/login`, `/register` — Auth
+- `/onboarding/role` — Role picker for new Google sign-ins
+- `/profile` — Shared profile page
+- `/bids` — Bids feed/overview
+- `/mybids` — Bids the current user placed
+- `/task/:taskId/files` — File exchange for a task
+- `/wallet`, `/payouts` — Simulated wallet and payouts
+- `/client/dashboard`, `/client/tasks` — Client workflow
+- `/tasker/dashboard`, `/tasker/tasks`, `/tasker/profile/:id` — Tasker workflow
+
+## Testing & CI
+
+- `npm test` runs Vitest (`vitest.config.ts` scopes it to `src/**/*.test.ts`, node
+  environment). Current coverage: `use-tasker-step-machine.test.ts` and
+  `lib/task-files.test.ts`.
+- `npm run typecheck` runs `tsc --noEmit`.
+- [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push/PR to
+  `main`: install → typecheck → test → build.
 
 ## Recommended next steps
 
-- Add tests for the API client and page workflows
-- Add stronger session validation and route guards
-- Turn repeated fetch code into reusable hooks
-- Expand the route tree with separate dashboard pages for each role
+- Add tests around the API client envelope/validation logic and the wallet store's
+  escrow transitions.
+- Add stronger session validation (the JWT is decoded but never signature-verified
+  client-side, by design — confirm the backend is the only place that matters).
+- Replace the simulated wallet with a real payments integration once the backend
+  supports it.
+- Expand test coverage beyond the two current files as more features stabilize.

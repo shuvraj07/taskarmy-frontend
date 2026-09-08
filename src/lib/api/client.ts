@@ -132,7 +132,7 @@ export async function requestFormData<T>(
   }
 }
 
-export const taskzityApi = {
+export const systemApi = {
   root: (baseUrl: string) => request<unknown>(baseUrl, "/", "GET"),
   health: (baseUrl: string) => request<unknown>(baseUrl, "/health", "GET"),
 };
